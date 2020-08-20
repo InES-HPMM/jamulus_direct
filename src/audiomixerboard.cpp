@@ -2,7 +2,10 @@
  * Copyright (c) 2004-2020
  *
  * Author(s):
- *  Volker Fischer 
+ *  Volker Fischer
+ *
+ * THIS FILE WAS MODIFIED by
+ *  Institut of Embedded Systems ZHAW (www.zhaw.ch/ines) - Simone Schwizer
  *
  ******************************************************************************
  *
@@ -45,8 +48,11 @@ CChannelFader::CChannelFader ( QWidget* pNW ) :
 
     pMuteSoloBox                = new QWidget     ( pFrame );
     pcbMute                     = new QCheckBox   ( tr ( "Mute" ), pMuteSoloBox );
+    pcbP2P                      = new QCheckBox   ( tr("P2P/CTR"), pMuteSoloBox ); // shall be overwritten
     pcbSolo                     = new QCheckBox   ( tr ( "Solo" ), pMuteSoloBox );
+#if (ALLOW_GROUPS == 1)
     pcbGroup                    = new QCheckBox   ( "", pMuteSoloBox );
+#endif
 
     pLabelInstBox               = new QGroupBox   ( pFrame );
     plblLabel                   = new QLabel      ( "", pFrame );
@@ -62,6 +68,7 @@ CChannelFader::CChannelFader ( QWidget* pNW ) :
     QHBoxLayout* pPanInfoGrid   = new QHBoxLayout ( );
 
     // define the popup menu for the group checkbox
+#if (ALLOW_GROUPS == 1)
     pGroupPopupMenu = new QMenu ( "", pcbGroup );
     pGroupPopupMenu->addAction ( tr ( "&No grouping" ), this, SLOT ( OnGroupMenuGrpNone() ) );
     pGroupPopupMenu->addAction ( tr ( "Assign to group" ) + " &1", this, SLOT ( OnGroupMenuGrp1() ) );
@@ -70,6 +77,7 @@ CChannelFader::CChannelFader ( QWidget* pNW ) :
     pGroupPopupMenu->addAction ( tr ( "Assign to group" ) + " &4", this, SLOT ( OnGroupMenuGrp4() ) );
 #if ( MAX_NUM_FADER_GROUPS != 4 )
 # error "MAX_NUM_FADER_GROUPS must be set to 4, see implementation in CChannelFader()"
+#endif
 #endif
 
     // setup channel level
@@ -119,8 +127,11 @@ CChannelFader::CChannelFader ( QWidget* pNW ) :
     pLevelsGrid->addWidget ( plbrChannelLevel, 0, Qt::AlignRight );
     pLevelsGrid->addWidget ( pFader,           0, Qt::AlignLeft );
 
+#if (ALLOW_GROUPS == 1)
     pMuteSoloGrid->addWidget ( pcbGroup, 0, Qt::AlignLeft );
+#endif
     pMuteSoloGrid->addWidget ( pcbMute,  0, Qt::AlignLeft );
+    pMuteSoloGrid->addWidget ( pcbP2P,   0, Qt::AlignLeft );
     pMuteSoloGrid->addWidget ( pcbSolo,  0, Qt::AlignLeft );
 
     pMainGrid->addLayout ( pPanGrid );
@@ -167,12 +178,12 @@ CChannelFader::CChannelFader ( QWidget* pNW ) :
         "except the soloed channel are muted. It is possible to set more than "
         "one channel to solo." ) );
     pcbSolo->setAccessibleName ( tr ( "Solo button" ) );
-
+#if (ALLOW_GROUPS == 1)
     pcbGroup->setWhatsThis ( "<b>" + tr ( "Group" ) + ":</b> " + tr ( "With the Grp checkbox, a "
         "group of audio channels can be defined. All channel faders in a group are moved "
         "in proportional synchronization if any one of the group faders are moved." ) );
     pcbGroup->setAccessibleName ( tr ( "Group button" ) );
-
+#endif
     QString strFaderText = "<b>" + tr ( "Fader Tag" ) + ":</b> " + tr ( "The fader tag "
         "identifies the connected client. The tag name, a picture of your "
         "instrument and the flag of your country can be set in the main window." );
@@ -195,11 +206,16 @@ CChannelFader::CChannelFader ( QWidget* pNW ) :
     QObject::connect ( pcbMute, &QCheckBox::stateChanged,
         this, &CChannelFader::OnMuteStateChanged );
 
+    QObject::connect ( pcbP2P, &QCheckBox::stateChanged,
+        this, &CChannelFader::OnButP2PStateChanged);
+
     QObject::connect ( pcbSolo, &QCheckBox::stateChanged,
         this, &CChannelFader::soloStateChanged );
 
+#if (ALLOW_GROUPS == 1)
     QObject::connect ( pcbGroup, &QCheckBox::stateChanged,
         this, &CChannelFader::OnGroupStateChanged );
+#endif
 }
 
 void CChannelFader::SetGUIDesign ( const EGUIDesign eNewDesign )
@@ -224,12 +240,16 @@ void CChannelFader::SetGUIDesign ( const EGUIDesign eNewDesign )
 
         pLabelGrid->addWidget               ( plblLabel, 0, Qt::AlignVCenter ); // label next to icons
         pLabelInstBox->setMinimumHeight     ( 52 ); // maximum height of the instrument+flag pictures
-        pFader->setMinimumHeight            ( 120 ); // if this value is too small, the fader might not be movable with the mouse for fancy skin (#292)
+        pFader->setMinimumHeight            ( 180 ); // if this value is too small, the fader might not be movable with the mouse for fancy skin (#292)
         pPan->setFixedSize                  ( 50, 50 );
         pPanLabel->setText                  ( tr ( "PAN" ) );
         pcbMute->setText                    ( tr ( "MUTE" ) );
         pcbSolo->setText                    ( tr ( "SOLO" ) );
+        if (bIsMyOwnFader)  pcbP2P->setText ( tr ( "CTR" ) );
+        else                pcbP2P->setText ( tr ( "P2P" ) );
+#if (ALLOW_GROUPS == 1)
         strGroupBaseText =                    tr ( "GRP" );
+#endif
         plbrChannelLevel->SetLevelMeterType ( CLevelMeter::MT_LED );
         iInstrPicMaxWidth = INVALID_INDEX; // no instrument picture scaling
         break;
@@ -259,15 +279,21 @@ void CChannelFader::SetGUIDesign ( const EGUIDesign eNewDesign )
         pPan->setFixedSize                  ( 50, 50 );
         pPanLabel->setText                  ( tr ( "Pan" ) );
         pcbMute->setText                    ( tr ( "Mute" ) );
+        if (bIsMyOwnFader) pcbP2P->setText(tr("Ctr"));
+        else    pcbP2P->setText(tr("P2P"));
         pcbSolo->setText                    ( tr ( "Solo" ) );
+#if (ALLOW_GROUPS == 1)
         strGroupBaseText =                    tr ( "Grp" );
+#endif
         plbrChannelLevel->SetLevelMeterType ( CLevelMeter::MT_BAR );
         iInstrPicMaxWidth = INVALID_INDEX; // no instrument picture scaling
         break;
     }
 
+#if (ALLOW_GROUPS == 1)
     // we need to update since we changed the checkbox text
     UpdateGroupIDDependencies();
+#endif
 
     // the instrument picture might need scaling after a style change
     SetChannelInfos ( cReceivedChanInfo );
@@ -375,6 +401,7 @@ void CChannelFader::Reset()
 
     // reset mute/solo/group check boxes and level meter
     pcbMute->setChecked ( false );
+    pcbP2P->setChecked ( false );
     pcbSolo->setChecked ( false );
     plbrChannelLevel->SetValue ( 0 );
     plbrChannelLevel->ClipReset();
@@ -399,8 +426,9 @@ void CChannelFader::Reset()
     bIsMyOwnFader        = false;
     bIsMutedAtServer     = false;
     iRunningNewClientCnt = 0;
-
+#if (ALLOW_GROUPS == 1)
     UpdateGroupIDDependencies();
+#endif
 }
 
 void CChannelFader::SetFaderLevel ( const double dLevel,
@@ -472,14 +500,16 @@ void CChannelFader::SendFaderLevelToServer ( const double dLevel,
     // if mute flag is set or other channel is on solo, do not apply the new
     // fader value to the server (exception: we are on solo, in that case we
     // ignore the "other channel is on solo" flag)
-    const bool bSuppressServerUpdate = !( ( pcbMute->checkState() == Qt::Unchecked ) &&
+    const bool bSuppressUnmuteByFader = !( ( pcbMute->checkState() == Qt::Unchecked ) &&
                                           ( !bOtherChannelIsSolo || IsSolo() ) );
 
     // emit signal for new fader gain value
     emit gainValueChanged ( MathUtils::CalcFaderGain ( static_cast<float> ( dLevel ) ),
                             bIsMyOwnFader,
                             bIsGroupUpdate,
-                            bSuppressServerUpdate,
+                            bSuppressUnmuteByFader,
+                            true, // Update server
+                            true, // Update client
                             dLevel / dPreviousFaderLevel );
 
     // update previous fader level since the level has changed, avoid to use
@@ -521,6 +551,13 @@ void CChannelFader::OnMuteStateChanged ( int value )
     SetMute ( static_cast<Qt::CheckState> ( value ) == Qt::Checked );
 }
 
+void CChannelFader::OnButP2PStateChanged(int value)
+{
+    // call P2P function
+    SetAllGainLevelsForP2P(static_cast<Qt::CheckState>(value) == Qt::Checked);
+}
+
+#if (ALLOW_GROUPS == 1)
 void CChannelFader::SetGroupID ( const int iNGroupID )
 {
     iGroupID = iNGroupID;
@@ -580,26 +617,100 @@ void CChannelFader::OnGroupStateChanged ( int )
     UpdateGroupIDDependencies();
     pGroupPopupMenu->popup ( QCursor::pos() );
 }
+#endif
 
 void CChannelFader::SetMute ( const bool bState )
 {
     if ( bState )
     {
-        if ( !bIsMutedAtServer )
-        {
-            // mute channel -> send gain of 0
-            emit gainValueChanged ( 0, bIsMyOwnFader, false, false, -1 ); // set level ratio to in invalid value
-            bIsMutedAtServer = true;
+        // mute channel -> send gain of 0
+        emit gainValueChanged ( 0, // value = mute
+            bIsMyOwnFader,
+            // damit beim unmute der alte Level wieder aktiviert wird??
+            false, // bIsGroupUpdate
+            false, // bSuppressUnmuteByFader
+            true,  // bDoServerUpdate
+            true,  // bDoClientUpdate
+            -1 ); // set level ratio to in invalid value
+    } else {
+        // unmute only if not other channel is on solo except if we are on solo
+        if (!bOtherChannelIsSolo || IsSolo() ) {
+            // mute was unchecked, get current fader value and apply
+            if ( IsP2P()) {
+                emit gainValueChanged (
+                    MathUtils::CalcFaderGain ( GetFaderLevel() ), // value
+                    bIsMyOwnFader, // redundant?!
+                    false, // bIsGroupUpdate
+                    false, // bSuppressUnmuteByFader
+                    false, // bDoServerUpdate
+                    true,  // bDoClientUpdate
+                    -1 ); // set level ratio to in invalid value
+            } else {
+                emit gainValueChanged (
+                    MathUtils::CalcFaderGain ( GetFaderLevel() ), // value
+                    bIsMyOwnFader, // redundant?!
+                    false, // bIsGroupUpdate
+                    false, // bSuppressUnmuteByFader
+                    true,  // bDoServerUpdate
+                    false,  // bDoClientUpdate
+                    -1 ); // set level ratio to in invalid value
+            }
         }
     }
-    else
-    {
-        // only unmute if we are not solot but an other channel is on solo
-        if ( ( !bOtherChannelIsSolo || IsSolo() ) && bIsMutedAtServer )
-        {
-            // mute was unchecked, get current fader value and apply
-            emit gainValueChanged ( MathUtils::CalcFaderGain ( GetFaderLevel() ), bIsMyOwnFader, false, false, -1 ); // set level ratio to in invalid value
-            bIsMutedAtServer = false;
+}
+
+
+void CChannelFader::P2PSetChecked(const bool P2PIsOn)
+{
+    pcbP2P->setChecked(P2PIsOn);
+}
+
+void CChannelFader::SetAllGainLevelsForP2P(const bool P2PisOn)
+{
+    if (P2PisOn) {
+        // mute channel in server mix -> send gain of 0
+        emit gainValueChanged ( 0,      // Gain
+                                bIsMyOwnFader,  // bIsMyOwnFader: dont set local gain
+                                false,  // bIsGroupUpdate
+                                false,  // bSuppressUnmuteByFader
+                                true,   // bDoServerUpdate
+                                false,  // bDoClientUpdate
+                                -1 );   // set level ratio to in invalid value
+
+        // set local channel gain to fader value
+        if ( !IsMute() && (!bOtherChannelIsSolo || IsSolo()) ) {
+
+            // mute is unchecked, get current fader value and apply
+            emit gainValueChanged ( MathUtils::CalcFaderGain ( GetFaderLevel() ),
+                                bIsMyOwnFader,  // bIsMyOwnFader: dont set local gain
+                                false,  // bIsGroupUpdate
+                                false,  // bSuppressUnmuteByFader
+                                false,  // bDoServerUpdate
+                                true,   // bDoClientUpdate
+                                -1 );   // set level ratio to in invalid value
+        }
+    } else { // P2P is off
+
+        // mute the local p2p channel
+        emit gainValueChanged ( 0,      // Gain
+                                bIsMyOwnFader,  // bIsMyOwnFader: dont set local gain
+                                false,  // bIsGroupUpdate
+                                false,  // bSuppressUnmuteByFader
+                                false,  // bDoServerUpdate
+                                true,   // bDoClientUpdate
+                                -1 );   // set level ratio to in invalid value
+
+        // at server set channel gain to fader value
+        if ( !IsMute() && (!bOtherChannelIsSolo || IsSolo()) ) {
+
+            // mute is unchecked, get current fader value and apply
+            emit gainValueChanged ( MathUtils::CalcFaderGain ( GetFaderLevel() ),
+                                false,  // bIsMyOwnFader: dont set local gain
+                                false,  // bIsGroupUpdate
+                                false,  // bSuppressUnmuteByFader
+                                true,   // bDoServerUpdate
+                                false,  // bDoClientUpdate
+                                -1 );   // set level ratio to in invalid value
         }
     }
 }
@@ -610,7 +721,7 @@ void CChannelFader::UpdateSoloState ( const bool bNewOtherSoloState )
     bOtherChannelIsSolo = bNewOtherSoloState;
 
     // mute overwrites solo -> if mute is active, do not change anything
-    if ( !pcbMute->isChecked() )
+    if ( !pcbMute->isChecked() && !pcbP2P->isChecked() )
     {
         // mute channel if we are not solo but another channel is solo
         SetMute ( bOtherChannelIsSolo && !IsSolo() );
@@ -662,6 +773,14 @@ void CChannelFader::SetChannelInfos ( const CChannelInfo& cChanInfo )
         }
     }
 
+
+    if (bIsMyOwnFader) {
+        strModText = "*" + strModText + "*";
+        pcbP2P->setText(tr("CTR"));
+    } else {
+        pcbP2P->setText(tr("P2P"));
+    }
+
     plblLabel->setText ( strModText );
 
 
@@ -699,28 +818,28 @@ void CChannelFader::SetChannelInfos ( const CChannelInfo& cChanInfo )
 
 
     // Country flag icon -------------------------------------------------------
-    if ( cChanInfo.eCountry != QLocale::AnyCountry )
-    {
-        // try to load the country flag icon
-        QPixmap CountryFlagPixmap ( CLocale::GetCountryFlagIconsResourceReference ( cChanInfo.eCountry ) );
-
-        // first check if resource reference was valid
-        if ( CountryFlagPixmap.isNull() )
-        {
-            // disable country flag
-            plblCountryFlag->setVisible ( false );
-        }
-        else
-        {
-            // set correct picture
-            plblCountryFlag->setPixmap ( CountryFlagPixmap );
-            eTTCountry = cChanInfo.eCountry;
-
-            // enable country flag
-            plblCountryFlag->setVisible ( true );
-        }
-    }
-    else
+    //if ( cChanInfo.eCountry != QLocale::AnyCountry )
+    //{
+    //    // try to load the country flag icon
+    //    QPixmap CountryFlagPixmap ( CLocale::GetCountryFlagIconsResourceReference ( cChanInfo.eCountry ) );
+//
+    //    // first check if resource reference was valid
+    //    if ( CountryFlagPixmap.isNull() )
+    //    {
+    //        // disable country flag
+    //        plblCountryFlag->setVisible ( false );
+    //    }
+    //    else
+    //    {
+    //        // set correct picture
+    //        plblCountryFlag->setPixmap ( CountryFlagPixmap );
+    //        eTTCountry = cChanInfo.eCountry;
+//
+    //        // enable country flag
+    //        plblCountryFlag->setVisible ( true );
+    //    }
+    //}
+    //else
     {
         // disable country flag
         plblCountryFlag->setVisible ( false );
@@ -822,6 +941,10 @@ void CChannelFader::SetChannelInfos ( const CChannelInfo& cChanInfo )
     plblLabel->setAccessibleDescription       ( tr ( "Alias" ) );
 }
 
+int CChannelFader::ChannelId () // p2p ?
+{
+    return cReceivedChanInfo.iChanID;
+}
 
 /******************************************************************************\
 * CAudioMixerBoard                                                             *
@@ -861,6 +984,9 @@ CAudioMixerBoard::CAudioMixerBoard ( QWidget* parent ) :
     {
         vecpChanFader[i] = new CChannelFader ( this );
         vecpChanFader[i]->Hide();
+
+        // add fader frame to audio mixer board layout
+        pMainLayout->addWidget ( vecpChanFader[i]->GetMainWidget() );
     }
 
     // insert horizontal spacer (at position MAX_NUM_CHANNELS+1 which is index MAX_NUM_CHANNELS)
@@ -894,7 +1020,7 @@ inline void CAudioMixerBoard::connectFaderSignalsToMixerBoardSlots()
 {
     int iCurChanID = slotId - 1;
 
-    void ( CAudioMixerBoard::* pGainValueChanged )( float, bool, bool, bool, double ) =
+    void ( CAudioMixerBoard::* pGainValueChanged )( float, bool, bool, bool, bool, bool, double ) =
         &CAudioMixerBoardSlots<slotId>::OnChGainValueChanged;
 
     void ( CAudioMixerBoard::* pPanValueChanged )( float ) =
@@ -1104,7 +1230,7 @@ void CAudioMixerBoard::UpdateTitle()
         strTitlePrefix = "[" + tr ( "RECORDING ACTIVE" ) + "] ";
     }
 
-    setTitle ( strTitlePrefix + tr ( "Personal Mix at: " ) + strServerName );
+    setTitle ( strTitlePrefix + tr ( "Session Name: " ) + strServerName );
     setAccessibleName ( title() );
 }
 
@@ -1199,7 +1325,9 @@ void CAudioMixerBoard::ApplyNewConClientList ( CVector<CChannelInfo>& vecChanInf
                             vecpChanFader[i]->SetPanValue    ( iStoredPanValue );
                             vecpChanFader[i]->SetFaderIsSolo ( bStoredFaderIsSolo );
                             vecpChanFader[i]->SetFaderIsMute ( bStoredFaderIsMute );
+#if (ALLOW_GROUPS == 1)
                             vecpChanFader[i]->SetGroupID     ( iGroupID ); // Must be the last to be set in the fader!
+#endif
                         }
                     }
 
@@ -1341,7 +1469,9 @@ void CAudioMixerBoard::LoadAllFaderSettings()
             vecpChanFader[i]->SetPanValue    ( iStoredPanValue );
             vecpChanFader[i]->SetFaderIsSolo ( bStoredFaderIsSolo );
             vecpChanFader[i]->SetFaderIsMute ( bStoredFaderIsMute );
+#if (ALLOW_GROUPS == 1)
             vecpChanFader[i]->SetGroupID     ( iGroupID ); // Must be the last to be set in the fader!
+#endif
         }
     }
 }
@@ -1385,21 +1515,25 @@ void CAudioMixerBoard::UpdateSoloStates()
 }
 
 void CAudioMixerBoard::UpdateGainValue ( const int    iChannelIdx,
-                                         const float  fValue,
-                                         const bool   bIsMyOwnFader,
-                                         const bool   bIsGroupUpdate,
-                                         const bool   bSuppressServerUpdate,
-                                         const double dLevelRatio )
+                                  const float fValue,
+                                  const bool bIsMyOwnFader,
+                                  const bool bIsGroupUpdate,
+                                  const bool bSuppressUnmuteByFader,
+                                  const bool bDoServerUpdate,
+                                  const bool bDoClientUpdate,
+                                  const double dLevelRatio)
 {
     // update current gain
-    if ( !bSuppressServerUpdate )
+    if ( !bSuppressUnmuteByFader )
     {
-        emit ChangeChanGain ( iChannelIdx, fValue, bIsMyOwnFader );
+        // set remote and/or local gain
+        emit ChangeChanGain(iChannelIdx, fValue, bIsMyOwnFader, bDoServerUpdate, bDoClientUpdate);
     }
 
     // if this fader is selected, all other in the group must be updated as
     // well (note that we do not have to update if this is already a group update
     // to avoid an infinite loop)
+#if (ALLOW_GROUPS == 1)
     if ( ( vecpChanFader[iChannelIdx]->GetGroupID() != INVALID_INDEX ) && !bIsGroupUpdate )
     {
         for ( int i = 0; i < MAX_NUM_CHANNELS; i++ )
@@ -1416,6 +1550,7 @@ void CAudioMixerBoard::UpdateGainValue ( const int    iChannelIdx,
             }
         }
     }
+#endif
 }
 
 void CAudioMixerBoard::UpdatePanValue ( const int   iChannelIdx,
@@ -1520,5 +1655,17 @@ void CAudioMixerBoard::SetChannelLevels ( const CVector<uint16_t>& vecChannelLev
                 vecpChanFader[iChId]->SetDisplayChannelLevel ( true );
             }
         }
+    }
+}
+
+void CAudioMixerBoard::UpdateP2PChannelState (const int iChId, const bool bNewState)
+{
+    for ( int i = 0; i < MAX_NUM_CHANNELS; i++ ) {
+        if (vecpChanFader[i]->ChannelId() == iChId) {
+            vecpChanFader[i]->P2PSetChecked(bNewState);
+            qDebug() << "DEBUG-CAudioMixerBoard::UpdateP2PChannelState fader #" << i << "matches channel ID" <<   iChId;
+            break;
+        }
+
     }
 }

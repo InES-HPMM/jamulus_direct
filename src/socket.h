@@ -4,20 +4,23 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  Institut of Embedded Systems ZHAW (www.zhaw.ch/ines) - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 2 of the License, or (at your option) any later 
+ * Foundation; either version 2 of the License, or (at your option) any later
  * version.
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT 
+ * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more 
+ * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
  * details.
  *
  * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 
+ * this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  *
 \******************************************************************************/
@@ -56,9 +59,11 @@ class CSocket : public QObject
     Q_OBJECT
 
 public:
-    CSocket ( CChannel*     pNewChannel,
+    CSocket ( CClient*      pNewClient,
+              CChannel*     pNewChannel,
               const quint16 iPortNumber )
-        : pChannel ( pNewChannel ),
+        : pClient ( pNewClient ),
+          pChannel ( pNewChannel ),
           bIsClient ( true ),
           bJitterBufferOK ( true ) { Init ( iPortNumber ); }
 
@@ -92,6 +97,7 @@ protected:
     QHostAddress     SenderAddress;
     quint16          SenderPort;
 
+    CClient*         pClient; // for client
     CChannel*        pChannel; // for client
     CServer*         pServer;  // for server
 
@@ -107,6 +113,9 @@ signals:
 
     void NewConnection ( int          iChID,
                          CHostAddress RecHostAddr ); // for the server
+
+    void NewP2pConnection ( int          iChID,
+                            CHostAddress RecHostAddr ); // for p2p channels
 
     void ServerFull ( CHostAddress RecHostAddr );
 
@@ -133,9 +142,10 @@ class CHighPrioSocket : public QObject
     Q_OBJECT
 
 public:
-    CHighPrioSocket ( CChannel*     pNewChannel,
+    CHighPrioSocket ( CClient*      pNewClient,
+                      CChannel*     pNewChannel,
                       const quint16 iPortNumber )
-        : Socket ( pNewChannel, iPortNumber ) { Init(); }
+        : Socket ( pNewClient, pNewChannel, iPortNumber ) { Init(); }
 
     CHighPrioSocket ( CServer*      pNewServer,
                       const quint16 iPortNumber )

@@ -4,6 +4,9 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  Institut of Embedded Systems ZHAW (www.zhaw.ch/ines) - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -401,6 +404,8 @@ protected:
 
     CSignalHandler*            pSignalHandler;
 
+    bool                       firstRegistrationDone;
+
 signals:
     void Started();
     void Stopped();
@@ -421,6 +426,7 @@ signals:
     void StopRecorder();
     void RecordingSessionStarted ( QString sessionDir );
     void EndRecorderThread();
+    void ServerRegisteredSuccessfully ( QString serverName );
 
 public slots:
     void OnTimer();
@@ -465,8 +471,8 @@ public slots:
         }
     }
 
-    void OnCLReqServerList ( CHostAddress InetAddr )
-        { ServerListManager.CentralServerQueryServerList ( InetAddr ); }
+    void OnCLReqServerList ( CHostAddress InetAddr, QString ServerName )
+        { ServerListManager.CentralServerQueryServerList ( InetAddr, ServerName ); }
 
     void OnCLReqVersionAndOS ( CHostAddress InetAddr )
         { ConnLessProtocol.CreateCLVersionAndOSMes ( InetAddr ); }
@@ -491,9 +497,24 @@ public slots:
     }
 
     void OnCLRegisterServerResp ( CHostAddress  /* unused */,
-                                  ESvrRegResult eResult )
+                                  ESvrRegResult eResult,
+                                  QString       strName )
     {
         ServerListManager.StoreRegistrationResult ( eResult );
+
+        //set servername to strName
+        if ( strName != ServerListManager.GetServerName() )
+        {
+            SetServerName ( strName );
+            //UpdateServerList();
+        }
+
+        // client will connect to server once the server has been successfully registrated
+        if ( !firstRegistrationDone && (eResult == ESvrRegResult::SRR_REGISTERED ) )
+        {
+            emit ServerRegisteredSuccessfully( strName );
+            firstRegistrationDone = true;
+        }
     }
 
     void OnCLUnregisterServerReceived ( CHostAddress InetAddr )
@@ -506,6 +527,11 @@ public slots:
     void OnAboutToQuit();
 
     void OnHandledSignal ( int sigNum );
+
+    void OnNewClientsListToAll()
+    {
+        CreateAndSendChanListForAllConChannels();
+    }
 };
 
 Q_DECLARE_METATYPE(CVector<int16_t>)

@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# THIS FILE WAS MODIFIED by
+#  Institut of Embedded Systems ZHAW (www.zhaw.ch/ines) - Simone Schwizer
+
 # This script is intended to setup a clean Raspberry Pi system for running Jamulus
 OPUS="opus-1.3.1"
 NCORES=$(nproc)
@@ -79,7 +82,7 @@ fi
 
 # compile Jamulus with external Opus library
 cd ..
-qmake "CONFIG+=opus_shared_lib raspijamulus headless" "INCLUDEPATH+=distributions/${OPUS}/include" "QMAKE_LIBDIR+=distributions/${OPUS}/.libs" "INCLUDEPATH+=distributions/jack2/common" "QMAKE_LIBDIR+=distributions/jack2/build/common" Jamulus.pro
+qmake "CONFIG+=opus_shared_lib raspijamulus" "INCLUDEPATH+=distributions/${OPUS}/include" "QMAKE_LIBDIR+=distributions/${OPUS}/.libs" "INCLUDEPATH+=distributions/jack2/common" "QMAKE_LIBDIR+=distributions/jack2/build/common" Jamulus.pro
 make -j${NCORES}
 
 # get first USB audio sound card device
@@ -88,17 +91,17 @@ echo "Using USB audio device: ${ADEVICE}"
 
 # write Jamulus ini file for setting the client name and buffer settings, if there is
 # just one CPU core, we assume that we are running on a Raspberry Pi Zero
-JAMULUSINIFILE="Jamulus.ini"
-NAME64=$(echo "Raspi $(hostname)"|cut -c -16|tr -d $'\n'|base64)
-if [ "$NCORES" -gt "1" ]; then
-  echo -e "<client>\n  <name_base64>${NAME64}</name_base64>" > ${JAMULUSINIFILE}
-  echo -e "  <autojitbuf>1</autojitbuf>\n  <jitbuf>3</jitbuf>\n  <jitbufserver>3</jitbufserver>" >> ${JAMULUSINIFILE}
-  echo -e "  <audiochannels>2</audiochannels>\n  <audioquality>1</audioquality>\n</client>" >> ${JAMULUSINIFILE}
-else
-  echo -e "<client>\n  <name_base64>${NAME64}</name_base64>" > ${JAMULUSINIFILE}
-  echo -e "  <autojitbuf>1</autojitbuf>\n  <jitbuf>3</jitbuf>\n  <jitbufserver>3</jitbufserver>" >> ${JAMULUSINIFILE}
-  echo -e "  <audiochannels>0</audiochannels>\n  <audioquality>1</audioquality>\n</client>" >> ${JAMULUSINIFILE}
-fi
+#JAMULUSINIFILE="Jamulus.ini"
+#NAME64=$(echo "Raspi $(hostname)"|cut -c -16|tr -d $'\n'|base64)
+#if [ "$NCORES" -gt "1" ]; then
+#  echo -e "<client>\n  <name_base64>${NAME64}</name_base64>" > ${JAMULUSINIFILE}
+#  echo -e "  <autojitbuf>1</autojitbuf>\n  <jitbuf>3</jitbuf>\n  <jitbufserver>3</jitbufserver>" >> ${JAMULUSINIFILE}
+#  echo -e "  <audiochannels>2</audiochannels>\n  <audioquality>1</audioquality>\n</client>" >> ${JAMULUSINIFILE}
+#else
+#  echo -e "<client>\n  <name_base64>${NAME64}</name_base64>" > ${JAMULUSINIFILE}
+#  echo -e "  <autojitbuf>1</autojitbuf>\n  <jitbuf>3</jitbuf>\n  <jitbufserver>3</jitbufserver>" >> ${JAMULUSINIFILE}
+#  echo -e "  <audiochannels>0</audiochannels>\n  <audioquality>1</audioquality>\n</client>" >> ${JAMULUSINIFILE}
+#fi
 
 # taken from "Raspberry Pi and realtime, low-latency audio" homepage at wiki.linuxaudio.org
 #sudo service triggerhappy stop
@@ -108,8 +111,10 @@ fi
 # start Jack2 and Jamulus in headless mode
 export LD_LIBRARY_PATH="distributions/${OPUS}/.libs:distributions/jack2/build:distributions/jack2/build/common"
 distributions/jack2/build/jackd -R -T --silent -P70 -p16 -t2000 -d alsa -dhw:${ADEVICE} -p 128 -n 3 -r 48000 -s &
-./Jamulus -n -i ${JAMULUSINIFILE} -c jamulus.fischvolk.de &
+./Jamulus --username DefaultUsername  &
+#./Jamulus --username DefaultUsername --sessionname DefaultSessionName --server  &
 
 echo "###---------- PRESS ANY KEY TO TERMINATE THE JAMULUS SESSION ---------###"
 read -n 1 -s -r -p ""
 killall Jamulus
+killall jackd

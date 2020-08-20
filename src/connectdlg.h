@@ -4,6 +4,9 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  Institut of Embedded Systems ZHAW (www.zhaw.ch/ines) - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -50,7 +53,8 @@ class CConnectDlg : public CBaseDlg, private Ui_CConnectDlgBase
     Q_OBJECT
 
 public:
-    CConnectDlg ( CClientSettings* pNSetP,
+    CConnectDlg ( CClient*         pNCliP,
+                  CClientSettings* pNSetP,
                   const bool       bNewShowCompleteRegList,
                   QWidget*         parent = nullptr );
 
@@ -84,6 +88,7 @@ protected:
     void             RequestServerList();
     void             EmitCLServerListPingMes ( const CHostAddress& CurServerAddress );
 
+    CClient*         pClient;
     CClientSettings* pSettings;
 
     QTimer           TimerPing;
@@ -111,7 +116,7 @@ public slots:
     void OnTimerReRequestServList();
 
 signals:
-    void ReqServerListQuery ( CHostAddress InetAddr );
+    void ReqServerListQuery ( CHostAddress InetAddr, QString ServerName );
     void CreateCLServerListPingMes ( CHostAddress InetAddr );
     void CreateCLServerListReqVerAndOSMes ( CHostAddress InetAddr );
     void CreateCLServerListReqConnClientsListMes ( CHostAddress InetAddr );

@@ -4,6 +4,9 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  Institut of Embedded Systems ZHAW (www.zhaw.ch/ines) - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -150,7 +153,7 @@ public slots:
             break;
 
         case 5: // PROTMESSID_REQ_CONN_CLIENTS_LIST
-            Protocol.CreateReqConnClientsList();
+            //Protocol.CreateReqConnClientsList();
             break;
 
         case 7: // PROTMESSID_CHANNEL_INFOS
@@ -239,7 +242,7 @@ public slots:
             break;
 
         case 20: // PROTMESSID_CLM_REQ_SERVER_LIST
-            Protocol.CreateCLReqServerListMes ( CurHostAddress );
+            Protocol.CreateCLReqServerListMes ( CurHostAddress, "" );
             break;
 
         case 21: // PROTMESSID_CLM_SEND_EMPTY_MESSAGE
@@ -300,8 +303,8 @@ public slots:
             eSvrRegResult =
                 static_cast<ESvrRegResult> ( GenRandomIntInRange ( 0, 1 ) );
 
-            Protocol.CreateCLRegisterServerResp ( CurHostAddress,
-                                                  eSvrRegResult );
+            // Protocol.CreateCLRegisterServerResp ( CurHostAddress,
+            //                                       eSvrRegResult );
             break;
 
         case 32: // PROTMESSID_CHANNEL_PAN

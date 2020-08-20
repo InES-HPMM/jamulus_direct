@@ -4,6 +4,9 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  Institut of Embedded Systems ZHAW (www.zhaw.ch/ines) - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -32,6 +35,9 @@ void CSettings::Load ( const QList<QString> CommandLineOptions )
     // data from file if possible
     QDomDocument IniXMLDocument;
     ReadFromFile ( strFileName, IniXMLDocument );
+
+    qInfo() << qUtf8Printable( QString( "DEBUG strFileName: %1" )
+                .arg( strFileName ) );
 
     // read the settings from the given XML file
     ReadSettingsFromXML ( IniXMLDocument, CommandLineOptions );
@@ -295,16 +301,19 @@ void CClientSettings::ReadSettingsFromXML ( const QDomDocument&   IniXMLDocument
     }
 
     // name
-    pClient->ChannelInfo.strName = FromBase64ToString (
-        GetIniSetting ( IniXMLDocument, "client", "name_base64",
-                        ToBase64 ( QCoreApplication::translate ( "CMusProfDlg", "No Name" ) ) ) );
+    // if ( FromBase64ToString (GetIniSetting ( IniXMLDocument, "client", "name_base64",
+    //                      ToBase64 ( QCoreApplication::translate ( "CMusProfDlg", "No Name" ) ) ) ) != "No Name"){
+    //     pClient->ChannelInfo.strName = FromBase64ToString (
+    //         GetIniSetting ( IniXMLDocument, "client", "name_base64",
+    //                         ToBase64 ( QCoreApplication::translate ( "CMusProfDlg", "No Name" ) ) ) );
+    // }
 
     // instrument
-    if ( GetNumericIniSet ( IniXMLDocument, "client", "instrument",
-         0, CInstPictures::GetNumAvailableInst() - 1, iValue ) )
-    {
-        pClient->ChannelInfo.iInstrument = iValue;
-    }
+    // if ( GetNumericIniSet ( IniXMLDocument, "client", "instrument",
+    //      0, CInstPictures::GetNumAvailableInst() - 1, iValue ) )
+    // {
+    //     pClient->ChannelInfo.iInstrument = iValue;
+    // }
 
     // country
     if ( GetNumericIniSet ( IniXMLDocument, "client", "country",
@@ -628,8 +637,8 @@ void CClientSettings::WriteSettingsToXML ( QDomDocument& IniXMLDocument )
         iNumMixerPanelRows );
 
     // name
-    PutIniSetting ( IniXMLDocument, "client", "name_base64",
-        ToBase64 ( pClient->ChannelInfo.strName ) );
+    //PutIniSetting ( IniXMLDocument, "client", "name_base64",
+    //    ToBase64 ( pClient->ChannelInfo.strName ) );
 
     // instrument
     SetNumericIniSet ( IniXMLDocument, "client", "instrument",

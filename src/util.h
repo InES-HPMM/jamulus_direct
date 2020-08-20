@@ -4,6 +4,9 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  Institut of Embedded Systems ZHAW (www.zhaw.ch/ines) - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -779,6 +782,11 @@ public:
         InetAddr ( NHAddr.InetAddr ),
         iPort    ( NHAddr.iPort ) {}
 
+    CHostAddress ( const quint32 NInetAddr,
+                   const quint16 iNPort ) :
+        InetAddr (  ( NInetAddr ) ),
+        iPort    ( ( iNPort ) ) {}
+
     // copy operator
     CHostAddress& operator= ( const CHostAddress& NHAddr )
     {
@@ -892,12 +900,19 @@ public:
 class CChannelCoreInfo
 {
 public:
-    CChannelCoreInfo() :
-        strName     ( "" ),
-        eCountry    ( QLocale::AnyCountry ),
-        strCity     ( "" ),
-        iInstrument ( CInstPictures::GetNotUsedInstrument() ),
-        eSkillLevel ( SL_NOT_SET ) {}
+    CChannelCoreInfo () :
+        strName      ( "" ),
+        eCountry     ( QLocale::AnyCountry ),
+        strCity      ( "" ),
+        iInstrument  ( CInstPictures::GetNotUsedInstrument() ),
+        eSkillLevel  ( SL_NOT_SET ) {}
+
+    CChannelCoreInfo ( const QString NsName ) :
+        strName      ( NsName ),
+        eCountry     ( QLocale::AnyCountry ),
+        strCity      ( "" ),
+        iInstrument  ( CInstPictures::GetNotUsedInstrument() ),
+        eSkillLevel  ( SL_NOT_SET ) {}
 
     CChannelCoreInfo ( const QString           NsName,
                        const QLocale::Country& NeCountry,
@@ -961,6 +976,32 @@ public:
 
     CChannelInfo ( const int               NiID,
                    const quint32           NiIP,
+                   const CChannelCoreInfo& NCorInf,
+                   const quint16           NiPort ) :
+        CChannelCoreInfo ( NCorInf ),
+        iChanID ( NiID ),
+        iIpAddr ( NiIP ),
+        iPort   ( NiPort ) {}
+
+    CChannelInfo ( const int               NiID,
+                   const quint32           NiIP,
+                   const CChannelCoreInfo& NCorInf,
+                   const quint16           NiPort,
+                   const quint32           NPIpAddr, // public ip
+                   const quint16           NPiPort,  // public port
+                   const quint32           NLIpAddr, // local ip
+                   const quint16           NLiPort ) : // local port
+        CChannelCoreInfo ( NCorInf ),
+        iChanID ( NiID ),
+        iIpAddr ( NiIP ),
+        iPort   ( NiPort ),
+        PIpAddr ( NPIpAddr ),
+        PiPort  ( NPiPort ),
+        LIpAddr ( NLIpAddr ),
+        LiPort  ( NLiPort ) {}
+
+    CChannelInfo ( const int               NiID,
+                   const quint32           NiIP,
                    const QString           NsName,
                    const QLocale::Country& NeCountry,
                    const QString&          NsCity,
@@ -974,11 +1015,59 @@ public:
         iChanID ( NiID ),
         iIpAddr ( NiIP ) {}
 
+    CChannelInfo ( const int               NiID,
+                   const quint32           NiIP,
+                   const QString           NsName,
+                   const QLocale::Country& NeCountry,
+                   const QString&          NsCity,
+                   const int               NiInstrument,
+                   const ESkillLevel       NeSkillLevel,
+                   const quint16           NiPort,
+                   const quint32           NPIpAddr, // public ip
+                   const quint16           NPiPort,  // public port
+                   const quint32           NLIpAddr, // local ip
+                   const quint16           NLiPort ) : // local port
+        CChannelCoreInfo ( NsName,
+                           NeCountry,
+                           NsCity,
+                           NiInstrument,
+                           NeSkillLevel ),
+        iChanID ( NiID ),
+        iIpAddr ( NiIP ),
+        iPort   ( NiPort ),
+        PIpAddr ( NPIpAddr ),
+        PiPort  ( NPiPort ),
+        LIpAddr ( NLIpAddr ),
+        LiPort  ( NLiPort ) {}
+
+    CChannelInfo ( const int               NiID,
+                   const quint32           NiIP,
+                   const QString           NsName,
+                   const QLocale::Country& NeCountry,
+                   const QString&          NsCity,
+                   const int               NiInstrument,
+                   const ESkillLevel       NeSkillLevel,
+                   const quint16           NiPort ) :
+        CChannelCoreInfo ( NsName,
+                           NeCountry,
+                           NsCity,
+                           NiInstrument,
+                           NeSkillLevel ),
+        iChanID ( NiID ),
+        iIpAddr ( NiIP ),
+        iPort   ( NiPort ) {}
+
     // ID of the channel
     int     iChanID;
 
     // IP address of the channel
     quint32 iIpAddr;
+    quint16 iPort;
+
+    quint32 PIpAddr; // public ip
+    quint16 PiPort;  // public port
+    quint32 LIpAddr; // local ip
+    quint16 LiPort;  // local port
 };
 
 

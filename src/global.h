@@ -2,6 +2,9 @@
  * \Copyright (c) 2004-2020
  * \author    Volker Fischer
  *
+ *
+ * THIS FILE WAS MODIFIED by
+ *  Institut of Embedded Systems ZHAW (www.zhaw.ch/ines) - Simone Schwizer
 
 \mainpage Jamulus source code documentation
 
@@ -75,7 +78,7 @@ LED bar:      lbr
 // version and application name (use version from qt prject file)
 #undef VERSION
 #define VERSION                          APP_VERSION
-#define APP_NAME                         "Jamulus"
+#define APP_NAME                         "Jamulus Direct"
 
 // Windows registry key name of auto run entry for the server
 #define AUTORUN_SERVER_REG_NAME          "Jamulus server"
@@ -94,18 +97,18 @@ LED bar:      lbr
 #define DOUBLE_SYSTEM_FRAME_SIZE_SAMPLES ( 2 * SYSTEM_FRAME_SIZE_SAMPLES )
 
 // default server address and port numbers
-#define DEFAULT_SERVER_ADDRESS           "anygenre1.jamulus.io"
+#define DEFAULT_SERVER_ADDRESS           "signal.unmute.ch:22124"
 #define DEFAULT_PORT_NUMBER              22124
-#define CENTSERV_ANY_GENRE2              "anygenre2.jamulus.io:22224"
-#define CENTSERV_ANY_GENRE3              "anygenre3.jamulus.io:22624"
-#define CENTSERV_GENRE_ROCK              "rock.jamulus.io:22424"
-#define CENTSERV_GENRE_JAZZ              "jazz.jamulus.io:22324"
-#define CENTSERV_GENRE_CLASSICAL_FOLK    "classical.jamulus.io:22524"
-#define CENTSERV_GENRE_CHORAL            "choral.jamulus.io:22724"
+#define CENTSERV_ANY_GENRE2              "signal.unmute.ch:22124"
+#define CENTSERV_ANY_GENRE3              "signal.unmute.ch:22124"
+#define CENTSERV_GENRE_ROCK              "signal.unmute.ch:22124"
+#define CENTSERV_GENRE_JAZZ              "signal.unmute.ch:22124"
+#define CENTSERV_GENRE_CLASSICAL_FOLK    "signal.unmute.ch:22124"
+#define CENTSERV_GENRE_CHORAL            "signal.unmute.ch:22124"
 
 // servers to check for new versions
-#define UPDATECHECK1_ADDRESS             "updatecheck1.jamulus.io"
-#define UPDATECHECK2_ADDRESS             "updatecheck2.jamulus.io"
+#define UPDATECHECK1_ADDRESS             "signal.unmute.ch:22124"
+#define UPDATECHECK2_ADDRESS             "signal.unmute.ch:22124"
 
 // getting started and software manual URL
 #define CLIENT_GETTING_STARTED_URL       "https://jamulus.io/wiki/Getting-Started"

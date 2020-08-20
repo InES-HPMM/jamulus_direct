@@ -4,20 +4,23 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  Institut of Embedded Systems ZHAW (www.zhaw.ch/ines) - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 2 of the License, or (at your option) any later 
+ * Foundation; either version 2 of the License, or (at your option) any later
  * version.
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT 
+ * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more 
+ * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
  * details.
  *
  * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 
+ * this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  *
 \******************************************************************************/
@@ -26,7 +29,8 @@
 
 
 // CChannel implementation *****************************************************
-CChannel::CChannel ( const bool bNIsServer ) :
+CChannel::CChannel ( const bool bNIsServer , const bool bNP2pType ) :
+    bPublicIpReceived      ( false ),
     vecfGains              ( MAX_NUM_CHANNELS, 1.0f ),
     vecfPannings           ( MAX_NUM_CHANNELS, 0.5f ),
     iCurSockBufNumFrames   ( INVALID_INDEX ),
@@ -38,10 +42,15 @@ CChannel::CChannel ( const bool bNIsServer ) :
     bIsEnabled             ( false ),
     bIsServer              ( bNIsServer ),
     iAudioFrameSizeSamples ( DOUBLE_SYSTEM_FRAME_SIZE_SAMPLES ),
-    SignalLevelMeter       ( false, 0.5 ) // server mode with mono out and faster smoothing
+    SignalLevelMeter       ( false, 0.5 ), // server mode with mono out and faster smoothing
+    bP2pType               ( bNP2pType ),
+    bP2pEnabled            ( false ),
+    p2pGain                ( 1.0 )
 {
     // reset network transport properties
     ResetNetworkTransportProperties();
+
+    iThisChanID = MAX_NUM_CHANNELS+1;
 
     // initial value for connection time out counter, we calculate the total
     // number of samples here and subtract the number of samples of the block
@@ -79,6 +88,9 @@ qRegisterMetaType<CHostAddress> ( "CHostAddress" );
     QObject::connect ( &Protocol, &CProtocol::ReqConnClientsList,
         this, &CChannel::ReqConnClientsList );
 
+    QObject::connect ( &Protocol, &CProtocol::ClientIpsRec,
+        this, &CChannel::OnClientIpsRec );
+
     QObject::connect ( &Protocol, &CProtocol::ConClientListMesReceived,
         this, &CChannel::ConClientListMesReceived );
 
@@ -90,6 +102,9 @@ qRegisterMetaType<CHostAddress> ( "CHostAddress" );
 
     QObject::connect ( &Protocol, &CProtocol::ClientIDReceived,
         this, &CChannel::ClientIDReceived );
+
+    QObject::connect ( &Protocol, &CProtocol::ClientIDReceived,
+        this, &CChannel::OnClientIDReceived );
 
     QObject::connect ( &Protocol, &CProtocol::MuteStateHasChangedReceived,
         this, &CChannel::MuteStateHasChangedReceived );
@@ -131,6 +146,10 @@ bool CChannel::ProtocolIsEnabled()
     if ( bIsServer )
     {
         return IsConnected();
+    }
+    else if ( bP2pType )
+    {
+        return ( ( IsConnected() || bIsEnabled ) && bP2pEnabled );
     }
     else
     {
@@ -438,6 +457,11 @@ void CChannel::OnChangeChanInfo ( CChannelCoreInfo ChanInfo )
 bool CChannel::GetAddress ( CHostAddress& RetAddr )
 {
     QMutexLocker locker ( &Mutex );
+    if (bP2pType)
+    {
+        RetAddr = InetAddr;
+        return true;
+    }
 
     if ( IsConnected() )
     {
@@ -449,6 +473,16 @@ bool CChannel::GetAddress ( CHostAddress& RetAddr )
         RetAddr = CHostAddress();
         return false;
     }
+}
+
+int  CChannel::MatchesAddresses ( const CHostAddress& LookupAddr ) {
+/*
+ *   Local or global address matches
+ */
+//     qDebug() << "DEBUG LookupAddr " << LookupAddr.toString();
+//     qDebug() << "DEBUG LInetAddr " << LInetAddr.toString();
+//     qDebug() << "DEBUG PInetAddr " << PInetAddr.toString();
+    return ((LookupAddr == LInetAddr) || (LookupAddr == PInetAddr));
 }
 
 void CChannel::OnNetTranspPropsReceived ( CNetworkTransportProps NetworkTransportProps )
@@ -646,7 +680,7 @@ EPutDataStat CChannel::PutAudioData ( const CVector<uint8_t>& vecbyData,
 
             // reset time-out counter (note that this must be done after the
             // "IsConnected()" query above)
-            ResetTimeOutCounter();
+            ResetTimeOutCounter( GetP2pType() );
         }
         MutexSocketBuf.unlock();
     }
@@ -684,7 +718,12 @@ EGetDataStat CChannel::GetData ( CVector<uint8_t>& vecbyData,
                 iConTimeOut = 0; // make sure we do not have negative values
 
                 // reset network transport properties
-                ResetNetworkTransportProperties();
+                // Muth: on p2p channels leave the properties because
+                //       they will not recovered
+                // todo get them from server
+                if (!GetP2pType()) ResetNetworkTransportProperties();
+
+                qDebug() << "DEBUG-Channel:: Timeout on"  << GetChannelID();
             }
             else
             {
@@ -773,4 +812,17 @@ void CChannel::UpdateSocketBufferSize()
         // buffer memory since we just adjust the size here
         SetSockBufNumFrames ( SockBuf.GetAutoSetting(), true );
     }
+}
+
+void CChannel::OnClientIpsRec ( CHostAddress LocalAddr,
+                                CHostAddress PublicAddr )
+{
+    PInetAddr = PublicAddr;
+    LInetAddr = LocalAddr;
+    bPublicIpReceived = true;
+
+    // invoke message action for Request connClientslist
+    emit ReqConnClientsList();
+
+    emit NewClientsListToAll();
 }

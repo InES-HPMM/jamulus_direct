@@ -4,6 +4,9 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  Institut of Embedded Systems ZHAW (www.zhaw.ch/ines) - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -49,6 +52,7 @@
 #include "clientsettingsdlg.h"
 #include "chatdlg.h"
 #include "connectdlg.h"
+#include "sessionnamedlg.h"
 #include "analyzerconsole.h"
 #include "ui_clientdlgbase.h"
 #if defined ( __APPLE__ ) || defined ( __MACOSX )
@@ -82,7 +86,9 @@ public:
                  const bool       bNewShowComplRegConnList,
                  const bool       bShowAnalyzerConsole,
                  const bool       bMuteStream,
-                 QWidget*         parent = nullptr );
+                 CServer*         pSer,
+                 QWidget*         parent = nullptr,
+                 Qt::WindowFlags  f = nullptr );
 
 protected:
     void               SetGUIDesign ( const EGUIDesign eNewDesign );
@@ -124,6 +130,8 @@ protected:
     CConnectDlg        ConnectDlg;
     CAnalyzerConsole   AnalyzerConsole;
     CMusProfDlg        MusicianProfileDlg;
+    CServer*           pServer;
+    CSessionNameDlg    SessionNameDlg;
 
 public slots:
     void OnConnectDisconBut();
@@ -181,6 +189,8 @@ public slots:
     void OnSettingsStateChanged ( int value );
     void OnChatStateChanged ( int value );
     void OnLocalMuteStateChanged ( int value );
+    void OnP2pStateChanged ( int value );
+    void OnP2pLoopStateChanged ( int value );
 
     void OnAudioPanValueChanged ( int value );
 
@@ -198,8 +208,8 @@ public slots:
     void OnLicenceRequired ( ELicenceType eLicenceType );
     void OnSoundDeviceChanged ( QString strError );
 
-    void OnChangeChanGain ( int iId, float fGain, bool bIsMyOwnFader )
-        { pClient->SetRemoteChanGain ( iId, fGain, bIsMyOwnFader ); }
+    void OnChangeChanGain ( int iId, float fGain, bool bIsMyOwnFader, bool bDoServerUpdate, bool bDoClientUpdate )
+        { pClient->SetRemoteChanGain ( iId, fGain, bIsMyOwnFader, bDoServerUpdate, bDoClientUpdate ); }
 
     void OnChangeChanPan ( int iId, float fPan )
         { pClient->SetRemoteChanPan ( iId, fPan ); }
@@ -207,8 +217,9 @@ public slots:
     void OnNewLocalInputText ( QString strChatText )
         { pClient->CreateChatTextMes ( strChatText ); }
 
-    void OnReqServerListQuery ( CHostAddress InetAddr )
-        { pClient->CreateCLReqServerListMes ( InetAddr ); }
+    void OnReqServerListQuery ( CHostAddress InetAddr,
+                                QString ServerName )
+        { pClient->CreateCLReqServerListMes ( InetAddr, ServerName ); }
 
     void OnCreateCLServerListPingMes ( CHostAddress InetAddr )
         { pClient->CreateCLServerListPingMes ( InetAddr ); }
@@ -250,4 +261,17 @@ public slots:
     void OnNumClientsChanged ( int iNewNumClients );
 
     void accept() { close(); } // introduced by pljones
+
+    void keyPressEvent ( QKeyEvent *e ) // block escape key
+        { if ( e->key() != Qt::Key_Escape ) QDialog::keyPressEvent ( e ); }
+
+    void OnServerConnection( QString strReceivedServerIp, QString strReseivedServerName );
+
+    void OnP2PChStateChange(const int iChId, const bool bNewState);
+
+    //recorder
+    void OnRecorderEnabledChanged ( int value );
+
+
+    void OnSessionNameChanged ( const QString newServerName );
 };

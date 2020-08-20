@@ -4,6 +4,9 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  Institut of Embedded Systems ZHAW (www.zhaw.ch/ines) - Simone Schwizer
+ *
 
 Currently, if you want to run a private server, you have to open the firewall of
 your computer at the correct ports and introduce a port forwarding at your
@@ -112,6 +115,19 @@ public:
                         NewCoreServerInfo.bPermanentOnline )
         { UpdateRegistration(); }
 
+    CServerListEntry ( const CHostAddress&    NHAddr,
+                       const CHostAddress&    NLHAddr,
+                       const CServerCoreInfo& NewCoreServerInfo,
+                       const QString&         ServerName )
+        : CServerInfo ( NHAddr,
+                        NLHAddr,
+                        ServerName,
+                        NewCoreServerInfo.eCountry,
+                        NewCoreServerInfo.strCity,
+                        NewCoreServerInfo.iMaxNumClients,
+                        NewCoreServerInfo.bPermanentOnline )
+        { UpdateRegistration(); }
+
     void UpdateRegistration() { RegisterTime.start(); }
 
 public:
@@ -154,7 +170,7 @@ public:
 
     void CentralServerUnregisterServer ( const CHostAddress& InetAddr );
 
-    void CentralServerQueryServerList ( const CHostAddress& InetAddr );
+    void CentralServerQueryServerList ( const CHostAddress& InetAddr, const QString& ServerName);
 
     void SlaveServerUnregister() { SlaveServerRegisterServer ( false ); }
 

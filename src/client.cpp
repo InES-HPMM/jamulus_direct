@@ -4,6 +4,9 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  Institut of Embedded Systems ZHAW (www.zhaw.ch/ines) - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -31,10 +34,13 @@ CClient::CClient ( const quint16  iPortNumber,
                    const QString& strMIDISetup,
                    const bool     bNoAutoJackConnect,
                    const QString& strNClientName,
-                   const bool     bNMuteMeInPersonalMix ) :
-    ChannelInfo                      ( ),
-    strClientName                    ( strNClientName ),
-    Channel                          ( false ), /* we need a client channel -> "false" */
+                   const bool     bNMuteMeInPersonalMix,
+                   const QString& strCentralServer,
+                   const int      iNewMaxNumChan,
+                   const bool     localServer ) :
+    ChannelInfo                      ( strNClientName ),
+    strClientName                    ( "Jamulus" ),
+    Channel                          ( false, false ), /* we need a client channel -> "false" */
     CurOpusEncoder                   ( nullptr ),
     CurOpusDecoder                   ( nullptr ),
     eAudioCompressionType            ( CT_OPUS ),
@@ -46,7 +52,7 @@ CClient::CClient ( const quint16  iPortNumber,
     bIsInitializationPhase           ( true ),
     bMuteOutStream                   ( false ),
     fMuteOutStreamGain               ( 1.0f ),
-    Socket                           ( &Channel, iPortNumber ),
+    Socket                           ( this , &Channel, iPortNumber ),
     Sound                            ( AudioCallback, this, strMIDISetup, bNoAutoJackConnect, strNClientName ),
     iAudioInFader                    ( AUD_FADER_IN_MIDDLE ),
     bReverbOnLeftChan                ( false ),
@@ -63,9 +69,27 @@ CClient::CClient ( const quint16  iPortNumber,
     bJitterBufferOK                  ( true ),
     bNuteMeInPersonalMix             ( bNMuteMeInPersonalMix ),
     iServerSockBufNumFrames          ( DEF_NET_BUF_SIZE_NUM_BL ),
-    pSignalHandler                   ( CSignalHandler::getSingletonP() )
+    pSignalHandler                   ( CSignalHandler::getSingletonP() ),
+    strStartupAddress                ( strConnOnStartupAddress ),
+    strCentralServerAddressClient    ( strCentralServer ),
+    p2pEnabled                       ( false ),
+    iMaxNumChannels                  ( iNewMaxNumChan ),
+    bLocalServer                     ( localServer ),
+    iPort                            ( iPortNumber ),
+    serverNameChanged                ( false )
 {
     int iOpusError;
+    int i;
+
+
+    // P2P: enable all channels (all channel must be enabled the
+    // entire life time of the software)
+    // set to bIsServer to false
+    for ( i = 0; i < iMaxNumChannels; i++ )
+    {
+        p2pChannels[i].SetIsServer( false );
+        p2pChannels[i].SetP2pType( true );
+    }
 
     OpusMode = opus_custom_mode_create ( SYSTEM_SAMPLE_RATE_HZ,
                                          DOUBLE_SYSTEM_FRAME_SIZE_SAMPLES,
@@ -105,6 +129,52 @@ CClient::CClient ( const quint16  iPortNumber,
     opus_custom_encoder_ctl ( OpusEncoderMono,   OPUS_SET_COMPLEXITY ( 1 ) );
     opus_custom_encoder_ctl ( OpusEncoderStereo, OPUS_SET_COMPLEXITY ( 1 ) );
 
+    // P2P initialisations
+
+    // create OPUS encoder/decoder for each channel (must be done before
+    // enabling the channels), create a mono and stereo encoder/decoder
+    // for each channel
+    for ( i = 0; i < iMaxNumChannels; i++ )
+    {
+        // init OPUS -----------------------------------------------------------
+        p2pOpusMode[i] = opus_custom_mode_create ( SYSTEM_SAMPLE_RATE_HZ,
+                                                DOUBLE_SYSTEM_FRAME_SIZE_SAMPLES,
+                                                &iOpusError );
+
+        p2pOpus64Mode[i] = opus_custom_mode_create ( SYSTEM_SAMPLE_RATE_HZ,
+                                                  SYSTEM_FRAME_SIZE_SAMPLES,
+                                                  &iOpusError );
+
+        // init audio encoders and decoders
+        p2pOpusEncoderMono[i]     = opus_custom_encoder_create ( p2pOpusMode[i],   1, &iOpusError ); // mono encoder legacy
+        p2pOpusDecoderMono[i]     = opus_custom_decoder_create ( p2pOpusMode[i],   1, &iOpusError ); // mono decoder legacy
+        p2pOpusEncoderStereo[i]   = opus_custom_encoder_create ( p2pOpusMode[i],   2, &iOpusError ); // stereo encoder legacy
+        p2pOpusDecoderStereo[i]   = opus_custom_decoder_create ( p2pOpusMode[i],   2, &iOpusError ); // stereo decoder legacy
+        p2pOpus64EncoderMono[i]   = opus_custom_encoder_create ( p2pOpus64Mode[i], 1, &iOpusError ); // mono encoder OPUS64
+        p2pOpus64DecoderMono[i]   = opus_custom_decoder_create ( p2pOpus64Mode[i], 1, &iOpusError ); // mono decoder OPUS64
+        p2pOpus64EncoderStereo[i] = opus_custom_encoder_create ( p2pOpus64Mode[i], 2, &iOpusError ); // stereo encoder OPUS64
+        p2pOpus64DecoderStereo[i] = opus_custom_decoder_create ( p2pOpus64Mode[i], 2, &iOpusError ); // stereo decoder OPUS64
+
+        // we require a constant bit rate
+        opus_custom_encoder_ctl ( p2pOpusEncoderMono[i],     OPUS_SET_VBR ( 0 ) );
+        opus_custom_encoder_ctl ( p2pOpusEncoderStereo[i],   OPUS_SET_VBR ( 0 ) );
+        opus_custom_encoder_ctl ( p2pOpus64EncoderMono[i],   OPUS_SET_VBR ( 0 ) );
+        opus_custom_encoder_ctl ( p2pOpus64EncoderStereo[i], OPUS_SET_VBR ( 0 ) );
+
+        // for 64 samples frame size we have to adjust the PLC behavior to avoid loud artifacts
+        opus_custom_encoder_ctl ( p2pOpus64EncoderMono[i],   OPUS_SET_PACKET_LOSS_PERC ( 35 ) );
+        opus_custom_encoder_ctl ( p2pOpus64EncoderStereo[i], OPUS_SET_PACKET_LOSS_PERC ( 35 ) );
+
+        // we want as low delay as possible
+        opus_custom_encoder_ctl ( p2pOpusEncoderMono[i],     OPUS_SET_APPLICATION ( OPUS_APPLICATION_RESTRICTED_LOWDELAY ) );
+        opus_custom_encoder_ctl ( p2pOpusEncoderStereo[i],   OPUS_SET_APPLICATION ( OPUS_APPLICATION_RESTRICTED_LOWDELAY ) );
+        opus_custom_encoder_ctl ( p2pOpus64EncoderMono[i],   OPUS_SET_APPLICATION ( OPUS_APPLICATION_RESTRICTED_LOWDELAY ) );
+        opus_custom_encoder_ctl ( p2pOpus64EncoderStereo[i], OPUS_SET_APPLICATION ( OPUS_APPLICATION_RESTRICTED_LOWDELAY ) );
+
+        // set encoder low complexity for legacy 128 samples frame size
+        opus_custom_encoder_ctl ( p2pOpusEncoderMono[i],   OPUS_SET_COMPLEXITY ( 1 ) );
+        opus_custom_encoder_ctl ( p2pOpusEncoderStereo[i], OPUS_SET_COMPLEXITY ( 1 ) );
+    }
 
     // Connections -------------------------------------------------------------
     // connections for the protocol mechanism
@@ -125,6 +195,9 @@ CClient::CClient ( const quint16  iPortNumber,
 
     QObject::connect ( &Channel, &CChannel::ConClientListMesReceived,
         this, &CClient::ConClientListMesReceived );
+
+    QObject::connect ( &Channel, &CChannel::ConClientListMesReceived,
+        this, &CClient::OnConClientListMesReceived );
 
     QObject::connect ( &Channel, &CChannel::Disconnected,
         this, &CClient::Disconnected );
@@ -158,6 +231,12 @@ CClient::CClient ( const quint16  iPortNumber,
 
     QObject::connect ( &ConnLessProtocol, &CProtocol::CLRedServerListReceived,
         this, &CClient::CLRedServerListReceived );
+
+    QObject::connect ( &ConnLessProtocol, &CProtocol::CLServerIpReceived,
+        this, &CClient::OnCLServerIpReceived );
+
+    QObject::connect ( &ConnLessProtocol, &CProtocol::CLPublicIpRec,
+        this, &CClient::OnCLPublicIpRec );
 
     QObject::connect ( &ConnLessProtocol, &CProtocol::CLConnClientsListMesReceived,
         this, &CClient::CLConnClientsListMesReceived );
@@ -202,15 +281,61 @@ CClient::CClient ( const quint16  iPortNumber,
     // start timer so that elapsed time works
     PreciseTime.start();
 
+    // timer
+    QObject::connect ( &TimerClientReReqServList, &QTimer::timeout,
+        this, &CClient::OnTimerClientReReqServList );
+
+    QObject::connect ( &TimerPingP2pClients, &QTimer::timeout,
+        this, &CClient::OnTimerPingP2pClients );
+
+    QObject::connect ( this, &CClient::Stopped,
+        &JamController, &recorder::CJamController::Stopped );
+
+    QObject::connect ( QCoreApplication::instance(), &QCoreApplication::aboutToQuit,
+        this, &CClient::OnAboutToQuit );
+
+    // QObject::connect ( &JamController, &recorder::CJamController::RestartRecorder,
+    //     this, &CClient::RestartRecorder ); --> seems to do nothing
+
+    // QObject::connect ( &JamController, &recorder::CJamController::StopRecorder,
+    //     this, &CClient::StopRecorder ); --> updates recorder state in serverdlg
+
+    // QObject::connect ( &JamController, &recorder::CJamController::RecordingSessionStarted,
+    //     this, &CServer::RecordingSessionStarted );
+
+    // QObject::connect ( &JamController, &recorder::CJamController::EndRecorderThread,
+    //     this, &CServer::EndRecorderThread );
+
+    qRegisterMetaType<CVector<int16_t>> ( "CVector<int16_t>" );
+    QObject::connect ( this, &CClient::AudioFrame,
+        &JamController, &recorder::CJamController::AudioFrame );
+
+    bRecorderEnabled = false;
+    bStopRecorder = false;
+
     // start the socket (it is important to start the socket after all
     // initializations and connections)
     Socket.Start();
 
-    // do an immediate start if a server address is given
-    if ( !strConnOnStartupAddress.isEmpty() )
+    // If there is no local server started, instantly connect to server
+    // else wait untli localserver has successfully registered
+    if ( !bLocalServer )
     {
-        SetServerAddr ( strConnOnStartupAddress );
-        Start();
+        // do an immediate start if a server address is given
+        if ( !strConnOnStartupAddress.isEmpty() )
+        {
+            if ( strConnOnStartupAddress == "127.0.0.1" )
+            {
+                SetServerAddr ( strConnOnStartupAddress );
+                Start();
+            }
+            else
+            {
+                // Start waiting for server list from central server
+                waitingForIp = true;
+                TimerClientReReqServList.start( 1000 ); //ms
+            }
+        }
     }
 }
 
@@ -235,6 +360,23 @@ CClient::~CClient()
     // free audio modes
     opus_custom_mode_destroy ( OpusMode );
     opus_custom_mode_destroy ( Opus64Mode );
+
+    for ( int i = 0; i < iMaxNumChannels; i++ )
+    {
+       // free audio encoders and decoders
+        opus_custom_encoder_destroy ( p2pOpusEncoderMono[i] );
+        opus_custom_decoder_destroy ( p2pOpusDecoderMono[i] );
+        opus_custom_encoder_destroy ( p2pOpusEncoderStereo[i] );
+        opus_custom_decoder_destroy ( p2pOpusDecoderStereo[i] );
+        opus_custom_encoder_destroy ( p2pOpus64EncoderMono[i] );
+        opus_custom_decoder_destroy ( p2pOpus64DecoderMono[i] );
+        opus_custom_encoder_destroy ( p2pOpus64EncoderStereo[i] );
+        opus_custom_decoder_destroy ( p2pOpus64DecoderStereo[i] );
+
+        // free audio modes
+        opus_custom_mode_destroy ( p2pOpusMode[i] );
+        opus_custom_mode_destroy ( p2pOpus64Mode[i] );
+    }
 }
 
 void CClient::OnSendProtMessage ( CVector<uint8_t> vecMessage )
@@ -374,15 +516,32 @@ void CClient::SetDoAutoSockBufSize ( const bool bValue )
 
 void CClient::SetRemoteChanGain ( const int   iId,
                                   const float fGain,
-                                  const bool  bIsMyOwnFader )
+                                  const bool  bIsMyOwnFader,
+                                  const bool  bDoServerUpdate,
+                                  const bool  bDoClientUpdate )
 {
-    // if this gain is for my own channel, apply the value for the Mute Myself function
-    if ( bIsMyOwnFader )
+    if ( bDoClientUpdate )
     {
-        fMuteOutStreamGain = fGain;
+        // if this gain is for my own channel, apply the value for the Mute Myself function
+        if ( bIsMyOwnFader )
+        {
+            fMuteOutStreamGain = fGain;
+        }
+
+        for ( int i = 0; i < p2pNumClientIps; i++ )
+        {
+            if ( p2pChannels[i].GetChannelID() == iId )
+            {
+                p2pChannels[i].SetP2pGain(fGain);
+            }
+            break;
+        }
     }
 
-    Channel.SetRemoteChanGain ( iId, fGain );
+    if ( bDoServerUpdate )
+    {
+        Channel.SetRemoteChanGain ( iId, fGain );
+    }
 }
 
 bool CClient::SetServerAddr ( QString strNAddr )
@@ -673,6 +832,24 @@ void CClient::OnSndCrdReinitRequest ( int iSndCrdResetType )
     emit SoundDeviceChanged ( strError );
 }
 
+void CClient::OnAboutToQuit()
+{
+    // if connected, terminate connection (needed for headless mode)
+    if ( IsRunning() )
+    {
+        Stop();
+    }
+
+    if ( JamController.GetRecordingEnabled() )
+    {
+        emit Stopped();
+    }
+
+
+    // this should trigger OnAboutToQuit
+    QCoreApplication::instance()->exit();
+}
+
 void CClient::OnHandledSignal ( int sigNum )
 {
 #ifdef _WIN32
@@ -680,6 +857,7 @@ void CClient::OnHandledSignal ( int sigNum )
     QCoreApplication::instance()->exit();
     Q_UNUSED ( sigNum )
 #else
+
     switch ( sigNum )
     {
     case SIGINT:
@@ -689,6 +867,12 @@ void CClient::OnHandledSignal ( int sigNum )
         {
             Stop();
         }
+
+        if ( JamController.GetRecordingEnabled() )
+        {
+            emit Stopped();
+        }
+
 
         // this should trigger OnAboutToQuit
         QCoreApplication::instance()->exit();
@@ -709,7 +893,7 @@ void CClient::OnControllerInFaderLevel ( int iChannelIdx,
     // only apply new fader level if channel index is valid
     if ( ( iChannelIdx >= 0 ) && ( iChannelIdx < MAX_NUM_CHANNELS ) )
     {
-        SetRemoteChanGain ( iChannelIdx, MathUtils::CalcFaderGain ( iValue ), false );
+        SetRemoteChanGain ( iChannelIdx, MathUtils::CalcFaderGain ( iValue ), false, true, true );
     }
 #endif
 
@@ -760,14 +944,42 @@ void CClient::OnClientIDReceived ( int iChanID )
     // be checked here)
     if ( bNuteMeInPersonalMix )
     {
-        SetRemoteChanGain ( iChanID, 0, false );
+        SetRemoteChanGain ( iChanID, 0, false, true, false );
     }
 
     emit ClientIDReceived ( iChanID );
 }
 
+void CClient::OnCLServerIpReceived ( CHostAddress,
+                                     CVector<CServerInfo> vecServerInfo )
+{
+    int vecSize = vecServerInfo.Size();
+    if ( waitingForIp && (vecSize > 1) )
+    {
+        //get Ip from server list
+        waitingForIp = false;
+        for ( int i = 0; i<vecSize ; i++){
+            // qInfo() << "DEBUG Hostaddr: " << i << " " << vecServerInfo[i].HostAddr.toString();
+            // qInfo() << "DEBUG name: " << i << " " << vecServerInfo[i].strName;
+            if ( vecServerInfo[i].HostAddr.toString() != "0.0.0.0:0" )
+            {
+                // qInfo() << "DEBUG connection! ";
+                emit ServerConnection( vecServerInfo[i].HostAddr.toString(), vecServerInfo[i].strName );
+                break;
+            }
+        }
+        //SetServerAddr ( vecServerInfo[1].HostAddr.toString() );
+        //Start(); -> option without GUI
+    }
+}
+
 void CClient::Start()
 {
+    if ( serverNameChanged )
+    {
+        emit SessionNameChanged ( strStartupAddress );
+    }
+
     // init object
     Init();
 
@@ -973,6 +1185,16 @@ void CClient::Init()
                                        iSndCrdFrameSizeFactor,
                                        iNumAudioChannels );
 
+    // set channel network properties for p2p channel
+    // set the channel network properties
+    for ( int i = 0; i < MAX_NUM_CHANNELS; i++ )
+    {
+        p2pChannels[i].SetAudioStreamProperties ( eAudioCompressionType,
+                                                  iCeltNumCodedBytes,
+                                                  iSndCrdFrameSizeFactor,
+                                                  iNumAudioChannels );
+    }
+
     // init reverberation
     AudioReverb.Init ( eAudioChannelConf,
                        iStereoBlockSizeSam,
@@ -998,6 +1220,17 @@ void CClient::Init()
 
     // reset initialization phase flag and mute flag
     bIsInitializationPhase = true;
+
+    //p2p initialisation
+    vecChanIDsCurConChan.Init          ( iMaxNumChannels );
+    vecAudioComprType.Init             ( iMaxNumChannels );
+    vecNumAudioChannels. Init          ( iMaxNumChannels );
+    vecUseDoubleSysFraSizeConvBuf.Init ( iMaxNumChannels );
+    vecNumFrameSizeConvBlocks.Init     ( iMaxNumChannels );
+    vecvecbyCodedData.Init             ( iMaxNumChannels );
+    p2pvecvecsData.Init                ( iMaxNumChannels );
+    p2pvecGains.Init                   ( iMaxNumChannels );
+    vecLoopAudio.Init                  ( 2 /* stereo */ * DOUBLE_SYSTEM_FRAME_SIZE_SAMPLES );
 }
 
 void CClient::AudioCallback ( CVector<int16_t>& psData, void* arg )
@@ -1135,23 +1368,37 @@ void CClient::ProcessAudioDataIntern ( CVector<int16_t>& vecsStereoSndCrd )
             else
             {
                 iUnused = opus_custom_encode ( CurOpusEncoder,
-                                               &vecsStereoSndCrd[i * iNumAudioChannels * iOPUSFrameSizeSamples],
-                                               iOPUSFrameSizeSamples,
-                                               &vecCeltData[0],
-                                               iCeltNumCodedBytes );
+                                                &vecsStereoSndCrd[i * iNumAudioChannels * iOPUSFrameSizeSamples],
+                                                iOPUSFrameSizeSamples,
+                                                &vecCeltData[0],
+                                                   iCeltNumCodedBytes );
             }
         }
 
-        // send coded audio through the network
+        if ( p2pEnabled )
+        {
+            // send coded audio to all other clients
+            for ( int i = 0; i<p2pNumClientIps; i++ )
+            {
+                if ( p2pChannels[i].IsEnabled() )
+                {
+                    p2pChannels[i].PrepAndSendPacket ( &Socket,
+                                                   vecCeltData,
+                                                   iCeltNumCodedBytes );
+                }
+            }
+        }
+
+        // send coded audio through the network to server
         Channel.PrepAndSendPacket ( &Socket,
                                     vecCeltData,
                                     iCeltNumCodedBytes );
     }
 
 
-    // Receive signal ----------------------------------------------------------
+    // Receive signal from SERVER ----------------------------------------------------------
     // in case of mute stream, store local data
-    if ( bMuteOutStream )
+    if ( bMuteOutStream || p2pEnabled )
     {
         vecsStereoSndCrdMuteStream = vecsStereoSndCrd;
     }
@@ -1190,8 +1437,158 @@ void CClient::ProcessAudioDataIntern ( CVector<int16_t>& vecsStereoSndCrd )
         }
     }
 
-    // for muted stream we have to add our local data here
-    if ( bMuteOutStream )
+    // Receive signal from CLIENTS (p2p) ---------------------------------------------------------- ----------------------------------------------------------
+    int  iNumClients               = 0; // init connected client counter
+
+    for ( int i = 0; i < iMaxNumChannels; i++ )
+    {
+        if ( p2pChannels[i].IsConnected() )
+        {
+            // add ID and increment counter (note that the vector length is
+            // according to the worst case scenario, if the number of
+            // connected clients is less, only a subset of elements of this
+            // vector are actually used and the others are dummy elements)
+            vecChanIDsCurConChan[iNumClients] = i;
+            iNumClients++;
+        }
+    }
+    // process connected channels
+    for ( int i = 0; i < iNumClients; i++ )
+    {
+        OpusCustomDecoder* p2pCurOpusDecoder;//CurOpusDecoder;   -> already defined
+        //unsigned char*     pCurCodedData;     -> already defined
+        bool                bUseDoubleSystemFrameSize = true;
+
+        // get actual ID of current channel
+        const int iCurChanID = vecChanIDsCurConChan[i];
+
+        // allocate worst case memory for the coded data
+        vecvecbyCodedData[i].Init ( MAX_SIZE_BYTES_NETW_BUF );
+
+         // we always use stereo audio buffers (which is the worst case)
+        p2pvecvecsData[i].Init ( 2 /* stereo */ * DOUBLE_SYSTEM_FRAME_SIZE_SAMPLES /* worst case buffer size */ );
+
+        // get and store number of audio channels and compression type
+        vecNumAudioChannels[i] = p2pChannels[iCurChanID].GetNumAudioChannels();             // from NetTranspPropsReceived
+        vecAudioComprType[i]   = p2pChannels[iCurChanID].GetAudioCompressionType();         // from NetTranspPropsReceived
+        p2pvecGains[i] = p2pChannels[iCurChanID].GetP2pGain();                             // get Gain
+
+        // get info about required frame size conversion properties -> is always false because bUseDoubleSystemFrameSize is TRUE
+        vecUseDoubleSysFraSizeConvBuf[i] = ( !bUseDoubleSystemFrameSize && ( vecAudioComprType[i] == CT_OPUS ) ); // bUseDoubleSystemFrameSize -> set in CServer -> usually true
+
+        if ( vecAudioComprType[i] == CT_OPUS64 )
+        {
+            vecNumFrameSizeConvBlocks[i] = 2;
+        }
+        else
+        {
+            vecNumFrameSizeConvBlocks[i] = 1;
+        }
+
+        // update conversion buffer size (nothing will happen if the size stays the same)
+        // if ( vecUseDoubleSysFraSizeConvBuf[i] )
+        // {
+        //     DoubleFrameSizeConvBufIn[iCurChanID].SetBufferSize  ( DOUBLE_SYSTEM_FRAME_SIZE_SAMPLES  * vecNumAudioChannels[i] );
+        //     DoubleFrameSizeConvBufOut[iCurChanID].SetBufferSize ( DOUBLE_SYSTEM_FRAME_SIZE_SAMPLES  * vecNumAudioChannels[i] );
+        // }
+
+        // select the opus decoder and raw audio frame length
+        if ( vecAudioComprType[i] == CT_OPUS )
+        {
+            if ( vecNumAudioChannels[i] == 1 )
+            {
+                p2pCurOpusDecoder = p2pOpusDecoderMono[iCurChanID];
+            }
+            else
+            {
+                p2pCurOpusDecoder = p2pOpusDecoderStereo[iCurChanID];
+            }
+        }
+        else if ( vecAudioComprType[i] == CT_OPUS64 )
+        {
+            if ( vecNumAudioChannels[i] == 1 )
+            {
+                p2pCurOpusDecoder = p2pOpus64DecoderMono[iCurChanID];
+            }
+            else
+            {
+                p2pCurOpusDecoder = p2pOpus64DecoderStereo[iCurChanID];
+            }
+        }
+        else
+        {
+            p2pCurOpusDecoder = nullptr;
+        }
+
+        // If the server frame size is smaller than the received OPUS frame size, we need a conversion
+        // buffer which stores the large buffer.
+        // Note that we have a shortcut here. If the conversion buffer is not needed, the boolean flag
+        // is false and the Get() function is not called at all. Therefore if the buffer is not needed
+        // we do not spend any time in the function but go directly inside the if condition.
+        if ( ( vecUseDoubleSysFraSizeConvBuf[i] == 0 ) ||
+                !DoubleFrameSizeConvBufIn[iCurChanID].Get ( p2pvecvecsData[i], SYSTEM_FRAME_SIZE_SAMPLES * vecNumAudioChannels[i] ) )
+        {
+            // get current number of OPUS coded bytes
+            const int iCeltNumCodedBytes = p2pChannels[iCurChanID].GetCeltNumCodedBytes();
+
+            for ( int iB = 0; iB < vecNumFrameSizeConvBlocks[i]; iB++ )
+            {
+                // get data
+                const EGetDataStat eGetStat = p2pChannels[iCurChanID].GetData ( vecvecbyCodedData[i], iCeltNumCodedBytes );
+
+                // if channel was just disconnected, set flag that connected
+                // client list is sent to all other clients
+                // and emit the client disconnected signal
+                if ( eGetStat == GS_CHAN_NOW_DISCONNECTED )
+                {
+                    // if ( JamController.GetRecordingEnabled() )
+                    // {
+                    //     emit ClientDisconnected ( iCurChanID ); // TODO do this outside the mutex lock?
+                    // }
+                    qDebug() << "Timeout on p2pChannels[iCurChanID].GetChannelID()" << iCurChanID << p2pChannels[iCurChanID].GetChannelID();
+                    emit P2PChStateChange( p2pChannels[iCurChanID].GetChannelID(), false );
+
+                    //bChannelIsNowDisconnected = true; --> NOT DEFINED YET
+                }
+
+                // get pointer to coded data
+                if ( eGetStat == GS_BUFFER_OK )
+                {
+                    pCurCodedData = &vecvecbyCodedData[i][0];
+                }
+                else
+                {
+                    // for lost packets use null pointer as coded input data
+                    pCurCodedData = nullptr;
+                }
+
+                // OPUS decode received data stream
+                if ( p2pCurOpusDecoder != nullptr )
+                {
+                    iUnused = opus_custom_decode ( p2pCurOpusDecoder,
+                                                    pCurCodedData,
+                                                    iCeltNumCodedBytes,
+                                                    &p2pvecvecsData[i][iB * SYSTEM_FRAME_SIZE_SAMPLES * vecNumAudioChannels[i]],
+                                                    iOPUSFrameSizeSamples );
+                }
+            }
+
+            //this is NOT executed with my standard settings
+            // a new large frame is ready, if the conversion buffer is required, put it in the buffer
+            // and read out the small frame size immediately for further processing
+            if ( vecUseDoubleSysFraSizeConvBuf[i] != 0 )
+            {
+                DoubleFrameSizeConvBufIn[i].Init  ( 2 /* stereo */ * DOUBLE_SYSTEM_FRAME_SIZE_SAMPLES /* worst case buffer size */ ); //-> new
+                DoubleFrameSizeConvBufIn[iCurChanID].PutAll ( p2pvecvecsData[i] );
+                DoubleFrameSizeConvBufIn[iCurChanID].Get ( p2pvecvecsData[i], SYSTEM_FRAME_SIZE_SAMPLES * vecNumAudioChannels[i] );
+            }
+        }
+    }
+    //---------------------------------------------------------- (p2p) END
+
+    //----------------------------------------------------------
+    // for muted stream or p2penabled we have to add our local data here
+    if ( bMuteOutStream || p2pEnabled  )
     {
         for ( i = 0; i < iStereoBlockSizeSam; i++ )
         {
@@ -1199,6 +1596,150 @@ void CClient::ProcessAudioDataIntern ( CVector<int16_t>& vecsStereoSndCrd )
                 vecsStereoSndCrd[i] + vecsStereoSndCrdMuteStream[i] * fMuteOutStreamGain );
         }
     }
+
+     //----------------------------------------------- (p2p)
+    // mix audio from server & p2p Clients
+    CVector<double>  vecdIntermProcBuf; // use reference for faster access
+    vecdIntermProcBuf.Init    (  2 /* stereo */ * DOUBLE_SYSTEM_FRAME_SIZE_SAMPLES /* worst case buffer size */ );
+
+    CVector<int16_t> vecsSendData; // use reference for faster access
+    vecsSendData.Init ( 2 /* stereo */ * DOUBLE_SYSTEM_FRAME_SIZE_SAMPLES /* worst case buffer size */  );
+
+    int k;
+
+    // init intermediate processing vector with zeros since we mix all channels on that vector
+    vecdIntermProcBuf.Reset ( 0 );
+
+
+    if ( eAudioChannelConf == CC_MONO )
+    {
+        // Mono target channel -------------------------------------------------
+        for ( j = 0; j < iNumClients; j++ )
+        {
+            // this client runs mono
+            const CVector<int16_t>& vecsData = p2pvecvecsData[j];
+            const double            dGain    = p2pvecGains[j];
+
+            if ( dGain == static_cast<double> ( 1.0 ) )
+            {
+                if ( vecNumAudioChannels[j] == 1 )
+                {
+                    // mono
+                    for ( i = 0; i < iOPUSFrameSizeSamples; i++ )
+                    {
+                        vecdIntermProcBuf[i] += vecsData[i];
+                    }
+                }
+                else
+                {
+                    // stereo: apply stereo-to-mono attenuation
+                    for ( i = 0, k = 0; i < iOPUSFrameSizeSamples; i++, k += 2 )
+                    {
+                        vecdIntermProcBuf[i] +=
+                            ( static_cast<double> ( vecsData[k] ) + vecsData[k + 1] ) / 2;
+                    }
+                }
+            }
+            else
+            {
+                if ( vecNumAudioChannels[j] == 1 )
+                {
+                    // mono
+                    for ( i = 0; i < iOPUSFrameSizeSamples; i++ )
+                    {
+                        vecdIntermProcBuf[i] += vecsData[i] * dGain;
+                    }
+                }
+                else
+                {
+                    // stereo: apply stereo-to-mono attenuation
+                    for ( i = 0, k = 0; i < iOPUSFrameSizeSamples; i++, k += 2 )
+                    {
+                        vecdIntermProcBuf[i] +=  dGain *
+                            ( static_cast<double> ( vecsData[k] ) + vecsData[k + 1] ) / 2;
+                    }
+                }
+            }
+        }
+        // convert from double to short with clipping
+        for ( i = 0; i < iOPUSFrameSizeSamples; i++ )
+        {
+            vecsSendData[i] = Float2Short ( vecdIntermProcBuf[i] );
+        }
+    }
+    else
+    {
+        // Stereo target channel -----------------------------------------------
+        for ( j = 0; j < iNumClients; j++ )
+        {
+            // get a reference to the audio data and gain/pan of the current client
+            const CVector<int16_t>& vecsData = p2pvecvecsData[j];
+            const double            dGain    = p2pvecGains[j];
+
+            if ( dGain == static_cast<double> ( 1.0 ) )
+            {
+                if ( vecNumAudioChannels[j] == 1 )
+                {
+                    // mono: copy same mono data in both out stereo audio channels
+                    for ( i = 0, k = 0; i < iOPUSFrameSizeSamples; i++, k += 2 )
+                    {
+                        // left/right channel
+                        vecdIntermProcBuf[k]     += vecsData[i];
+                        vecdIntermProcBuf[k + 1] += vecsData[i];
+                    }
+                }
+                else
+                {
+                    // stereo
+                    for ( i = 0; i < ( 2 * iOPUSFrameSizeSamples ); i++ )
+                    {
+                        vecdIntermProcBuf[i] += vecsData[i];
+                    }
+                }
+            }
+            else
+            {
+                if ( vecNumAudioChannels[j] == 1 )
+                {
+                    // mono: copy same mono data in both out stereo audio channels
+                    for ( i = 0, k = 0; i < iOPUSFrameSizeSamples; i++, k += 2 )
+                    {
+                        // left/right channel
+                        vecdIntermProcBuf[k]     += vecsData[i] * dGain;
+                        vecdIntermProcBuf[k + 1] += vecsData[i] * dGain;
+                    }
+                }
+                else
+                {
+                    // stereo
+                    for ( i = 0; i < ( 2 * iOPUSFrameSizeSamples ); i++ )
+                    {
+                        // left/right channel
+                        vecdIntermProcBuf[i]     += vecsData[i] *     dGain;
+                        vecdIntermProcBuf[i + 1] += vecsData[i + 1] * dGain;
+                    }
+                }
+            }
+
+        }
+        // convert from double to short with clipping
+        for ( i = 0; i < ( 2 * iOPUSFrameSizeSamples ); i++ )
+        {
+            vecsSendData[i] = Float2Short ( vecdIntermProcBuf[i] );
+        }
+    }
+
+    // add p2p sound (vecsSendData) to server audio (vecsSendData)
+    for ( i = 0; i < iOPUSFrameSizeSamples; i++ )
+    {
+        vecsStereoSndCrd[i] += vecsSendData[i];
+    }
+
+    for ( i = 0; i < iOPUSFrameSizeSamples; i++ )
+    {
+        vecLoopAudio[i] = vecsSendData[i];
+    }
+    //----------------------------------------------- (p2p) END
 
     // check if channel is connected and if we do not have the initialization phase
     if ( Channel.IsConnected() && ( !bIsInitializationPhase ) )
@@ -1222,6 +1763,27 @@ void CClient::ProcessAudioDataIntern ( CVector<int16_t>& vecsStereoSndCrd )
 
     // update socket buffer size
     Channel.UpdateSocketBufferSize();
+
+    for ( int i = 0; i < p2pNumClientIps; i++ )
+    {
+        // update socket buffer size
+        p2pChannels[i].UpdateSocketBufferSize();
+    }
+
+    // export the audio data for recording purpose
+    if ( bRecorderEnabled && !bStopRecorder)
+    {
+        emit AudioFrame ( 0,
+                          "recording",
+                          CHostAddress(),
+                          2,
+                          vecsStereoSndCrd );
+    }
+    else if ( bStopRecorder )
+    {
+        JamController.SetEnableRecording ( false, true );
+        bStopRecorder = false;
+    }
 
     Q_UNUSED ( iUnused )
 }
@@ -1281,4 +1843,300 @@ int CClient::EstimatedOverallDelay ( const int iPingTimeMs )
         fAdditionalAudioCodecDelayMs;
 
     return MathUtils::round ( fTotalBufferDelayMs + iPingTimeMs );
+}
+
+void CClient::OnTimerClientReReqServList()
+{
+    // if the server list is not yet received, retransmit the request
+    if ( waitingForIp )
+    {
+        // convert central server address string to chostaddress
+        CHostAddress HostAddressCent;
+        if( NetworkUtil().ParseNetworkAddress ( strCentralServerAddressClient, HostAddressCent ))
+        {
+            // request list from server
+            CreateCLReqServerListMes ( HostAddressCent, strStartupAddress );
+            return;
+        }
+        qInfo() << "central server address not possible to parse";
+        return;
+    }
+    else
+    {
+        TimerClientReReqServList.stop();
+    }
+}
+
+void CClient::P2pStateChanged( const bool enable )
+{
+    qInfo() << "p2p state changed";
+
+    // set p2pEnabled for channels
+    for ( int i = 0; i < MAX_NUM_CHANNELS; i++ )
+    {
+        p2pChannels[i].SetP2pEnabled( enable );
+    }
+}
+
+void CClient::OnConClientListMesReceived ( CVector<CChannelInfo> vecChanInfo )
+{
+    CHostAddress HostAddr_temp;
+
+    p2pNumClientIps = vecChanInfo.Size();
+
+    int p2pChannelIndex = 0;
+
+    for ( int i = 0; ( i < MAX_NUM_CHANNELS ) && ( i < vecChanInfo.Size() )  ; i++ )
+    {
+        // find out if this entry shows own client info
+
+        // skip if channel id is own id
+        if( vecChanInfo[i].iChanID == Channel.GetChannelID() )
+        {
+            p2pNumClientIps--;
+            continue;
+        }
+
+        if( vecChanInfo[i].PIpAddr == 0)
+        {
+            //p2pNumClientIps--;
+            continue;
+        }
+
+        // Check if public ip is the same as own public ip
+        if ( Channel.PInetAddr.InetAddr.toIPv4Address() == vecChanInfo[i].PIpAddr )
+        {
+            // both devices are in the same LAN -> set local address
+            HostAddr_temp.InetAddr.setAddress( vecChanInfo[i].LIpAddr );
+
+            // -> set local port
+            HostAddr_temp.iPort = vecChanInfo[i].LiPort;
+
+        }
+        else
+        {
+            // both devices are in different LANs -> set public address
+            HostAddr_temp.InetAddr.setAddress( vecChanInfo[i].PIpAddr );
+
+            // -> set public port
+            HostAddr_temp.iPort = vecChanInfo[i].PiPort;
+
+
+        }
+
+        // save ipv4 chostaddr to channel
+        p2pChannels[p2pChannelIndex].SetAddress(HostAddr_temp);
+
+        // save local and global address as key to lookup id
+        CHostAddress LocalIpAddress = CHostAddress(vecChanInfo[i].LIpAddr, vecChanInfo[i].LiPort);
+        CHostAddress PublicIpAddress = CHostAddress(vecChanInfo[i].PIpAddr, vecChanInfo[i].PiPort);
+        p2pChannels[p2pChannelIndex].SetKey ( LocalIpAddress,  PublicIpAddress );
+
+        // set channel id of channel
+        p2pChannels[p2pChannelIndex].SetChannelID(vecChanInfo[i].iChanID);
+
+        // enable channel (so channel could also receive)
+        p2pChannels[p2pChannelIndex].SetEnable ( true );
+        qInfo() << "DEBUG p2pChannels " << p2pChannelIndex << " " << p2pChannels[p2pChannelIndex].GetAddress().toString();
+        p2pChannelIndex++;
+    }
+
+    for ( ; p2pChannelIndex < MAX_NUM_CHANNELS; p2pChannelIndex++ )
+    {
+        // disable all other channels
+        p2pChannels[p2pChannelIndex].SetEnable ( false );
+    }
+
+    TimerPingP2pClients.start( 1000 );
+}
+
+bool CClient::PutAudioData ( const CVector<uint8_t>& vecbyRecBuf,
+                             const int               iNumBytesRead,
+                             const CHostAddress&     HostAdr,
+                             int&                    iCurChanID )
+{
+    //QMutexLocker locker ( &Mutex );
+    bool bNewConnection = false; // init return value
+    bool bChanOK        = true;  // init with ok, might be overwritten
+
+    // Get channel ID ------------------------------------------------------
+    // check address
+    iCurChanID = FindP2PChannel ( HostAdr ); // Address of P2P Client
+
+    if ( iCurChanID == INVALID_CHANNEL_ID )
+    {
+        qInfo() << "DEBUG unknown host tried to establish p2p connection";
+        return false;
+    }
+
+    // Put received audio data in jitter buffer ----------------------------
+    if ( bChanOK )
+    {
+        // put packet in socket buffer
+        if ( p2pChannels[iCurChanID].PutAudioData ( vecbyRecBuf,
+                                                    iNumBytesRead,
+                                                    HostAdr ) == PS_NEW_CONNECTION )
+        {
+            // in case we have a new connection return this information
+            bNewConnection = true;
+        }
+    }
+
+    // return the state if a new connection was happening
+    return bNewConnection;
+}
+
+int CClient::GetFreeChan()
+{
+    // look for a free channel
+    for ( int i = 0; i < iMaxNumChannels; i++ )
+    {
+        if ( !p2pChannels[i].IsConnected() )
+        {
+            return i;
+        }
+    }
+
+    // no free channel found, return invalid ID
+    return INVALID_CHANNEL_ID;
+}
+
+int CClient::FindChannel ( const CHostAddress& CheckAddr )
+{
+    CHostAddress InetAddr;
+
+    // check for all possible channels if IP is already in use
+    for ( int i = 0; i < iMaxNumChannels; i++ )
+    {
+        // the "GetAddress" gives a valid address and returns true if the
+        // channel is connected
+        if ( p2pChannels[i].GetAddress ( InetAddr ) )
+        {
+            // IP found, return channel number
+            if ( InetAddr == CheckAddr )
+            {
+                return i;
+            }
+        }
+    }
+
+    // IP not found, return invalid ID
+    return INVALID_CHANNEL_ID;
+}
+
+int CClient::FindP2PChannel ( const CHostAddress& CheckAddr )
+{
+    // find the list index of the channel based on the
+    // local or global ip address
+
+    CHostAddress InetAddr;
+
+    // check for all possible channels if IP is already in use
+    for ( int i = 0; i < iMaxNumChannels; i++ )
+    {
+        // the "GetAddress" gives a valid address and returns true if the
+        // channel is connected
+
+        if ( p2pChannels[i].MatchesAddresses ( CheckAddr ) ) {
+            // IP found, return channel number
+                return i;
+        }
+    }
+
+    // IP not found, return invalid ID
+    return INVALID_CHANNEL_ID;
+}
+
+// central server sent clients public ip
+void CClient::OnCLPublicIpRec ( CHostAddress PInetAddr )
+{
+    // get local port
+    Channel.LInetAddr = CHostAddress( NetworkUtil::GetLocalAddress().InetAddr, iPort );
+    Channel.PInetAddr = PInetAddr;
+
+    qInfo() << "My public IP: " << PInetAddr.toString();
+    qInfo() << "My local IP: " << Channel.LInetAddr.toString();
+}
+
+void CClient::OnNewP2pConnection ( int iChID, CHostAddress )
+{
+    qInfo() << "DEBUG OnNewP2pConnection";
+
+    // inform the client about its own ID at the server (note that this
+    // must be the first message to be sent for a new connection)
+    //p2pChannels[iChID].CreateClientIDMes ( iChID );
+
+    // on a new connection we query the network transport properties for the
+    // audio packets (to use the correct network block size and audio
+    // compression properties, etc.)
+    p2pChannels[iChID].CreateReqNetwTranspPropsMes();
+
+    // this is a new connection, query the jitter buffer size we shall use
+    // for this client (note that at the same time on a new connection the
+    // client sends the jitter buffer size by default but maybe we have
+    // reached a state where this did not happen because of network trouble,
+    // client or server thinks that the connection was still active, etc.)
+    p2pChannels[iChID].CreateReqJitBufMes();
+
+    // A new client connected to the server, the channel list
+    // at all clients have to be updated. This is done by sending
+    // a channel name request to the client which causes a channel
+    // name message to be transmitted to the server. If the server
+    // receives this message, the channel list will be automatically
+    // updated (implicitly).
+    //
+    // Usually it is not required to send the channel list to the
+    // client currently connecting since it automatically requests
+    // the channel list on a new connection (as a result, he will
+    // usually get the list twice which has no impact on functionality
+    // but will only increase the network load a tiny little bit). But
+    // in case the client thinks he is still connected but the server
+    // was restartet, it is important that we send the channel list
+    // at this place.
+    p2pChannels[iChID].CreateReqChanInfoMes();
+
+    emit P2PChStateChange( p2pChannels[iChID].GetChannelID(), true ); // P2P on
+}
+
+int CClient::CreateLevelForThisChan( const int iChanID,
+                                          const CVector<int16_t> vecvecsData,
+                                          const int              numAudioChannels )
+{
+    // update and get signal level for meter in dB for each channel
+    const double dCurSigLevelForMeterdB =
+                p2pChannels[iChanID].UpdateAndGetLevelForMeterdB ( vecvecsData,
+                                                             iOPUSFrameSizeSamples,
+                                                             numAudioChannels > 1 );
+
+    // map value to integer for transmission via the protocol (4 bit available)
+    return static_cast<int> ( ceil ( dCurSigLevelForMeterdB ) );
+}
+
+int CClient::CreateLevelForOwnChan( const CVector<int16_t> vecvecsData,
+                                          const int        numAudioChannels )
+{
+    // update and get signal level for meter in dB for each channel
+    const double dCurSigLevelForMeterdB =
+                Channel.UpdateAndGetLevelForMeterdB ( vecvecsData,
+                                                      iOPUSFrameSizeSamples,
+                                                      numAudioChannels > 1 );
+
+    // map value to integer for transmission via the protocol (4 bit available)
+    return static_cast<int> ( ceil ( dCurSigLevelForMeterdB ) );
+}
+
+void CClient::OnServerRegisteredSuccessfully( QString serverName )
+{
+    // Set new server name
+    if ( strStartupAddress != serverName)
+    {
+        strStartupAddress = serverName;
+
+        // show info about server name change in clientdlg -> emit is done a little later in CClient::Start()
+        serverNameChanged = true;
+    }
+
+    // Start waiting for server list from central server
+    waitingForIp = true;
+    TimerClientReReqServList.start( 1000 ); //ms
 }

@@ -4,6 +4,9 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  Institut of Embedded Systems ZHAW (www.zhaw.ch/ines) - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -61,6 +64,7 @@ public:
     bool    IsVisible() { return !pFrame->isHidden(); }
     bool    IsSolo() { return pcbSolo->isChecked(); }
     bool    IsMute() { return pcbMute->isChecked(); }
+    bool    IsP2P()  { return pcbP2P->isChecked(); }
     int     GetGroupID() { return iGroupID; }
     void    SetGUIDesign ( const EGUIDesign eNewDesign );
     void    SetDisplayChannelLevel ( const bool eNDCL );
@@ -71,7 +75,10 @@ public:
     void SetPanValue ( const int iPan );
     void SetFaderIsSolo ( const bool bIsSolo );
     void SetFaderIsMute ( const bool bIsMute );
+
+#if (ALLOW_GROUPS == 1)
     void SetGroupID ( const int iNGroupID );
+#endif
     void SetRemoteFaderIsMute ( const bool bIsMute );
     void SetFaderLevel ( const double dLevel,
                          const bool   bIsGroupUpdate = false );
@@ -85,10 +92,16 @@ public:
     void   SetChannelLevel ( const uint16_t iLevel );
     void   SetIsMyOwnFader() { bIsMyOwnFader = true; }
     void   UpdateSoloState ( const bool bNewOtherSoloState );
+    void   P2PSetChecked(const bool P2PIsOn); // use IsP2P() to query
+
+    int    ChannelId();
 
 protected:
+#if (ALLOW_GROUPS == 1)
     void   UpdateGroupIDDependencies();
+#endif
     void   SetMute ( const bool bState );
+    void   SetAllGainLevelsForP2P ( const bool bState ); // Mute and unmute S/C/L by gain
     void   SetupFaderTag ( const ESkillLevel eSkillLevel );
     void   SendPanValueToServer ( const int iPan );
     void   SendFaderLevelToServer ( const double dLevel,
@@ -107,9 +120,12 @@ protected:
     QVBoxLayout* pLabelPictGrid;
 
     QCheckBox*   pcbMute;
+    QCheckBox*   pcbP2P;
     QCheckBox*   pcbSolo;
     QCheckBox*   pcbGroup;
+#if (ALLOW_GROUPS == 1)
     QMenu*       pGroupPopupMenu;
+#endif
 
     QGroupBox*   pLabelInstBox;
     QLabel*      plblLabel;
@@ -133,20 +149,25 @@ public slots:
 
     void OnPanValueChanged ( int value );
     void OnMuteStateChanged ( int value );
-    void OnGroupStateChanged ( int );
+    void OnButP2PStateChanged ( int value );
 
+#if (ALLOW_GROUPS == 1)
+    void OnGroupStateChanged ( int );
     void OnGroupMenuGrpNone() { SetGroupID ( INVALID_INDEX ); }
     void OnGroupMenuGrp1()    { SetGroupID ( 0 ); }
     void OnGroupMenuGrp2()    { SetGroupID ( 1 ); }
     void OnGroupMenuGrp3()    { SetGroupID ( 2 ); }
     void OnGroupMenuGrp4()    { SetGroupID ( 3 ); }
+#endif
 
 signals:
-    void gainValueChanged ( float  value,
+    void gainValueChanged ( float value,
                             bool   bIsMyOwnFader,
                             bool   bIsGroupUpdate,
-                            bool   bSuppressServerUpdate,
-                            double dLevelRatio );
+                            bool   bSuppressUnmuteByFader,
+                            bool   bDoServerUpdate,
+                            bool   bDoClientUpdate,
+                            double  dLevelRatio );
 
     void panValueChanged  ( float value );
     void soloStateChanged ( int value );
@@ -159,12 +180,16 @@ public:
     void OnChGainValueChanged ( float  fValue,
                                 bool   bIsMyOwnFader,
                                 bool   bIsGroupUpdate,
-                                bool   bSuppressServerUpdate,
-                                double dLevelRatio ) { UpdateGainValue ( slotId - 1,
+                                bool   bSuppressUnmuteByFader,
+                                bool   bDoServerUpdate,
+                                bool   bDoClientUpdate,
+                                double  dLevelRatio ) { UpdateGainValue ( slotId - 1,
                                                                          fValue,
                                                                          bIsMyOwnFader,
                                                                          bIsGroupUpdate,
-                                                                         bSuppressServerUpdate,
+                                                                         bSuppressUnmuteByFader,
+                                                                         bDoServerUpdate,
+                                                                         bDoClientUpdate,
                                                                          dLevelRatio ); }
 
     void OnChPanValueChanged ( float fValue ) { UpdatePanValue ( slotId - 1, fValue ); }
@@ -174,8 +199,10 @@ protected:
                                    const float  fValue,
                                    const bool   bIsMyOwnFader,
                                    const bool   bIsGroupUpdate,
-                                   const bool   bSuppressServerUpdate,
-                                   const double dLevelRatio ) = 0;
+                                   const bool   bSuppressUnmuteByFader,
+                                   const bool   bDoServerUpdate,
+                                   const bool   bDoClientUpdate,
+                                   const double  dLevelRatio ) = 0;
 
     virtual void UpdatePanValue ( const int   iChannelIdx,
                                   const float fValue ) = 0;
@@ -205,6 +232,7 @@ public:
     void            SetPanIsSupported();
     void            SetRemoteFaderIsMute ( const int iChannelIdx, const bool bIsMute );
     void            SetMyChannelID ( const int iChannelIdx ) { iMyChannelID = iChannelIdx; }
+    int             GetMyChannelID ( ) { return iMyChannelID ; }
 
     void            SetFaderLevel ( const int iChannelIdx,
                                     const int iValue );
@@ -232,6 +260,9 @@ public:
     void            SetAllFaderLevelsToNewClientLevel();
     void            StoreAllFaderSettings();
     void            LoadAllFaderSettings();
+
+    void            UpdateP2PChannelState (const int iChId, const bool bNewState);
+
 
 protected:
     class CMixerBoardScrollArea : public QScrollArea
@@ -264,6 +295,7 @@ protected:
 
     CClientSettings*        pSettings;
     CVector<CChannelFader*> vecpChanFader;
+    CVector<uint16_t>       vecpChanFaderOld;
     CMixerBoardScrollArea*  pScrollArea;
     QGridLayout *           pMainLayout;
     bool                    bDisplayPans;
@@ -281,7 +313,9 @@ protected:
                                    const float  fValue,
                                    const bool   bIsMyOwnFader,
                                    const bool   bIsGroupUpdate,
-                                   const bool   bSuppressServerUpdate,
+                                   const bool   bSuppressUnmuteByFader,
+                                   const bool   bDoServerUpdate,
+                                   const bool   bDoClientUpdate,
                                    const double dLevelRatio );
 
     virtual void UpdatePanValue ( const int   iChannelIdx,
@@ -291,7 +325,7 @@ protected:
     inline void connectFaderSignalsToMixerBoardSlots();
 
 signals:
-    void ChangeChanGain ( int iId, float fGain, bool bIsMyOwnFader );
+    void ChangeChanGain ( int iId, float fGain, bool bIsMyOwnFader, bool bDoServerUpdate, bool bDoClientUpdate );
     void ChangeChanPan ( int iId, float fPan );
     void NumClientsChanged ( int iNewNumClients );
 };

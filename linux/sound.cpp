@@ -4,6 +4,9 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  Institut of Embedded Systems ZHAW (www.zhaw.ch/ines) - Simone Schwizer
+ *
  * This code is based on the simple_client example of the Jack audio interface.
  *
  ******************************************************************************
@@ -49,7 +52,7 @@ void CSound::OpenJack ( const bool  bNoAutoJackConnect,
     jack_set_process_callback ( pJackClient, process, this );
 
     // register a "buffer size changed" callback function
-    jack_set_buffer_size_callback ( pJackClient, bufferSizeCallback, this );
+    //jack_set_buffer_size_callback ( pJackClient, bufferSizeCallback, this );
 
     // register shutdown callback function
     jack_on_shutdown ( pJackClient, shutdownCallback, this );
@@ -208,7 +211,7 @@ int CSound::Init ( const int /* iNewPrefMonoBufferSize */ )
 // Doesn't this give an infinite loop? The set buffer size function will call our
 // registered callback which calls "EmitReinitRequestSignal()". In that function
 // this CSound::Init() function is called...
-//jack_set_buffer_size ( pJackClient, iNewPrefMonoBufferSize );
+ jack_set_buffer_size ( pJackClient, 128 );
 
     // without a Jack server, Jamulus makes no sense to run, throw an error message
     if ( bJackWasShutDown )

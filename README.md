@@ -1,67 +1,87 @@
-[![Homepage picture](src/res/homepage/jamulusbannersmall.png)](https://jamulus.io)
-
-[![Auto-Build](https://github.com/jamulussoftware/jamulus/actions/workflows/autobuild.yml/badge.svg)](https://github.com/jamulussoftware/jamulus/actions/workflows/autobuild.yml)
-
-Jamulus - Internet Jam Session Software
-=======================================
-<a href="https://jamulus.io/"><img align="left" src="src/res/homepage/mediawikisidebarlogo.png"/></a>
-
-Jamulus enables musicians to perform in real-time together over the internet.
-A Jamulus server collects the incoming audio data from each Jamulus client, mixes that data and then sends that mix back to each client. Jamulus can support large numbers of clients with minimal latency and modest bandwidth requirements. 
-
-Jamulus is [__free and open source software__](https://www.gnu.org/philosophy/free-sw.en.html) (FOSS) licensed under the [GPL](http://www.gnu.org/licenses/gpl-2.0.html) 
-and runs under __Windows__ ([ASIO](https://www.steinberg.net)),
-__MacOS__ ([Core Audio](https://developer.apple.com/documentation/coreaudio)) and
-__Linux__ ([Jack](https://jackaudio.org)).
-It is based on the [Qt framework](https://www.qt.io) and uses the [OPUS](http://www.opus-codec.org) audio codec.
+# Jamulus Direct
+**Jamulus Direct** is a peer-to-peer audio conferencing software run on a RaspberryPi 4 with a U-Phoria UM2 Behringer USB interface.
 
 
-Installation
-------------
+[![logo](images/ines_logo.png)](https://www.zhaw.ch/en/engineering/institutes-centres/ines/ "Homepage")
 
-[Please see the Getting Started page](https://jamulus.io/wiki/Getting-Started) containing instructions for installing and using Jamulus for your platform.
+__The group High Performance Multimedia from the Institute of Embedded Systems associated with ZHAW School of Engineering proudly presents a peer-to-peer version of the popular music performance software Jamulus.__
+
+Jamulus is an open-source software for online music sessions. Especially with the pandemic hiting the world, Jamulus is a great solution for bands and choirs to rehearse together from home over the internet. The website of Jamulus can be found at https://jamulus.io/.
+
+We are big fans of Jamulus and wanted to add peer-to-peer audio structure. Jamulus Direct is the result of this effort.
+
+## About Jamulus Direct
+**Jamulus Direct** is a modified version of Jamulus with a peer-to-peer audio functionality. The peer-to-peer structure can lower audio latencies between clients. The software is inteded for musical groups that want to rehearse together. The person who opens a session, shares the session name with his/her peers, so they can connect to the opened session. Opened sessions are not displayed in a public list.
+
+**Jamulus Direct** is designed to be run on a Raspberry Pi 4 with a U-Phoria UM2 Behringer USB audio Interface.    
+To test it out, you can either use our prepared image or install **Jamulus Direct** on a already running Raspberry Pi. Both options are explained in more details below.   
+
+- [Setup Jamulus Direct Image on a RaspberryPi](#Setup-Jamulus-Direct-Image-on-a-RaspberryPi)
+- [Install Jamulus Direct on an already running RaspberryPi](#Install-Jamulus-Direct-on-an-already-running-RaspberryPi)
+
+![Pi-and-Interface](images/pi_audio_interface.jpg)
+
+# Setup Jamulus Direct Image on a RaspberryPi
+- [1 Write SD Card](#Write-SD-card)    
+- [2 Connect to RaspberryPi with VNC Viewer](#Connect-to-RaspberryPi-with-VNC-Viewer)    
+
+------------------------------------------------
+
+## Write SD card
+Download the **Jamulus Direct** Image:
+
+Write the image on an SD Card. For this you can use the RaspberryPi Imager: https://www.raspberrypi.org/downloads/
+
+After installing the RaspberryPi Imager, start the application. In "CHOOSE OS" select "Use custom" and then find the downloaded image.
+
+When the imager is done, remove the SD card from the computer and put it into the RaspberryPi.
+
+Boot the RaspberryPi.
+
+## Connect to RaspberryPi with VNC Viewer
+To use the RaspberryPi, one can simply connect a display, keyboard and mouse to the Pi. But since this setup is not very handy, we suggest connecting to the RaspberryPi with VNC Viewer. VNC Viewer can be installed on a Laptop/Computer with Windows, MacOS and Linux (https://www.realvnc.com/de/connect/download/viewer/). Or install it on your phone over the App Store on Android or iOS. The device you choose to connect with, needs to be in the same network as the RaspberryPi.
+
+To connect to the RaspberryPi with VNC viewer, enter `jamulusdirect.local`. The VNC viewer should find the RaspberryPi by this hostname.
+
+![](images/vnc_viewer_connect1.png)
+
+To login use:
+- User: pi
+- Password: jamulusdirect4music
+
+![](images/vnc_viewer_connect2.png)
+
+If the VNC Viewer cannot find the hostname `jamulusdirect.local`then do the following:
+- On Windows: Install and run Bonjour Print Services https://support.apple.com/kb/DL999?locale=en_US
+- Linux: In a terminal run: `ping jamulusdirect.local`. The ping command shows the IP of jamulusdirect.local. In VNC Viewer, use this IP to connect.
+- Android Phone: Install and run BonjourBrowser Application from the Play Store. When scanning your network with the BonjourBrowser, it should show you the IP of your RaspberryPi. In VNC Viewer, use this IP to connect.
+
+When you are logged in, for security, change the password of the RaspberryPi.   
+Click Raspberry Symbol on top left -> Preferences -> Raspberry Pi Configuration -> Change Password
+
+<img src="/images/raspi_config_menu_edited.png" width="830" />
 
 
-Help
-----
-
-Official documentation for Jamulus is on the [Jamulus homepage](https://jamulus.io)
-
-See also the [discussion forums](https://github.com/jamulussoftware/jamulus/discussions). If you have issues, feel free to ask for help there.
-
-Bugs and feature requests can be [reported here](https://github.com/jamulussoftware/jamulus/issues)
+<img src="/images/raspi_config_cange_pwd_edited.png" width="830" />
 
 
-Compilation
------------
+## Run Jamulus Direct
+Tor run **Jamulus Direct**, double-click the file called **Jamulus Direct** on the desktop. Then you can choose either "Execute" or "Execute in Terminal". Running it in terminal can be useful to get the application debug output, if something is not working.
 
-[Please see these instructions](https://jamulus.io/wiki/Compiling)
+The first window that opens up lets you choose your name and the name of the session. If you are opening the session, press "Open". If your peer has already opened a session, than enter his/her session name and press "Connect to Session". 
 
+# Install Jamulus Direct on an already running RaspberryPi
 
-Contributing
-------------
+## Install and Run Jamulus Direct
+Download the **Jamulus Direct** source code and run the raspijamulus script to build **Jamulus Direct** and its dependencies:
+```
+git clone https://github.com/InES-HPMM/jamulus_direct.git
+cd ~/jamulus_direct/distributions
+./raspijamulus.sh
+```
+In the future to run jamulus just execute the jamulus_direct.sh with sudo privileges:
+```
+cd ~/jamulus_direct/distributions
+sudo ./jamulus_direct.sh
+```
 
-See the [contributing instructions](CONTRIBUTING.md)
-
-
-Acknowledgments
----------------
-
-This code contains open source code from different sources. The developer(s) want
-to thank the developer of this code for making their efforts available under open
-source:
-
-- Qt cross-platform application framework: http://www.qt.io
-
-- Opus Interactive Audio Codec: http://www.opus-codec.org
-
-- Audio reverberation code: by Perry R. Cook and Gary P. Scavone, 1995 - 2004
-  (taken from "The Synthesis ToolKit in C++ (STK)"):
-  http://ccrma.stanford.edu/software/stk
-  
-- Some pixmaps are from the Open Clip Art Library (OCAL): http://openclipart.org
-
-- Country flag icons from Mark James: http://www.famfamfam.com
-
-We would also like to acknowledge the contributors listed in the
-[Github Contributors list](https://github.com/jamulussoftware/jamulus/graphs/contributors).

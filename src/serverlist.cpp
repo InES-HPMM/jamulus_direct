@@ -4,20 +4,23 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  Institut of Embedded Systems ZHAW (www.zhaw.ch/ines) - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 2 of the License, or (at your option) any later 
+ * Foundation; either version 2 of the License, or (at your option) any later
  * version.
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT 
+ * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more 
+ * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
  * details.
  *
  * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 
+ * this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  *
 \******************************************************************************/
@@ -327,7 +330,7 @@ void CServerListManager::CentralServerRegisterServer ( const CHostAddress&    In
             if ( strVersion.isEmpty() ||
                  QVersionNumber::compare ( QVersionNumber::fromString ( strMinServerVersion ), QVersionNumber::fromString ( strVersion ) ) > 0 )
             {
-                pConnLessProtocol->CreateCLRegisterServerResp ( InetAddr, SRR_VERSION_TOO_OLD );
+                pConnLessProtocol->CreateCLRegisterServerResp ( InetAddr, SRR_VERSION_TOO_OLD, "" );
                 return; // leave function early, i.e., we do not register this server
             }
 #endif
@@ -339,7 +342,7 @@ void CServerListManager::CentralServerRegisterServer ( const CHostAddress&    In
             // if the server is not listed, refuse registration and send registration response
             if ( !vWhiteList.contains ( InetAddr.InetAddr ) )
             {
-                pConnLessProtocol->CreateCLRegisterServerResp ( InetAddr, SRR_NOT_FULFILL_REQIREMENTS );
+                pConnLessProtocol->CreateCLRegisterServerResp ( InetAddr, SRR_NOT_FULFILL_REQIREMENTS, "" );
                 return; // leave function early, i.e., we do not register this server
             }
         }
@@ -348,6 +351,9 @@ void CServerListManager::CentralServerRegisterServer ( const CHostAddress&    In
         QMutexLocker locker ( &Mutex );
 
         const int iCurServerListSize = ServerList.size();
+
+        int serverNameAddon = 1;
+        QString ServerName = ServerInfo.strName;
 
         // Check if server is already registered.
         // The very first list entry must not be checked since
@@ -364,6 +370,19 @@ void CServerListManager::CentralServerRegisterServer ( const CHostAddress&    In
                 // entry found, leave for-loop
                 continue;
             }
+            else if ( ServerList[iIdx].strName == ServerName )
+            {
+                //server name already taken by another InetAddr
+
+                //search for new name
+                ServerName = ServerInfo.strName + QString::number(serverNameAddon);
+
+                //increment serverNameAddon in case this name is also already taken
+                serverNameAddon++;
+
+                //restart loop with new server name
+                iIdx = 0;
+            }
         }
 
         // if server is not yet registered, we have to create a new entry
@@ -373,7 +392,7 @@ void CServerListManager::CentralServerRegisterServer ( const CHostAddress&    In
             if ( iCurServerListSize < MAX_NUM_SERVERS_IN_SERVER_LIST )
             {
                 // create a new server list entry and init with received data
-                ServerList.append ( CServerListEntry ( InetAddr, LInetAddr, ServerInfo ) );
+                ServerList.append ( CServerListEntry ( InetAddr, LInetAddr, ServerInfo, ServerName ) );
                 iSelIdx = iCurServerListSize;
             }
         }
@@ -381,7 +400,7 @@ void CServerListManager::CentralServerRegisterServer ( const CHostAddress&    In
         {
             // update all data and call update registration function
             ServerList[iSelIdx].LHostAddr        = LInetAddr;
-            ServerList[iSelIdx].strName          = ServerInfo.strName;
+            ServerList[iSelIdx].strName          = ServerName;
             ServerList[iSelIdx].eCountry         = ServerInfo.eCountry;
             ServerList[iSelIdx].strCity          = ServerInfo.strCity;
             ServerList[iSelIdx].iMaxNumClients   = ServerInfo.iMaxNumClients;
@@ -390,9 +409,14 @@ void CServerListManager::CentralServerRegisterServer ( const CHostAddress&    In
             ServerList[iSelIdx].UpdateRegistration();
         }
 
+        // tsConsoleStream << "Requested to register entry for "
+        //                 << InetAddr.toString() << " (" << LInetAddr.toString() << ")"
+        //                 << ": " << ServerName << endl;
+
         pConnLessProtocol->CreateCLRegisterServerResp ( InetAddr, iSelIdx == INVALID_INDEX
                                                             ? ESvrRegResult::SRR_CENTRAL_SVR_FULL
-                                                            : ESvrRegResult::SRR_REGISTERED );
+                                                            : ESvrRegResult::SRR_REGISTERED,
+                                                            ServerName );
     }
 }
 
@@ -427,7 +451,7 @@ void CServerListManager::CentralServerUnregisterServer ( const CHostAddress& Ine
     }
 }
 
-void CServerListManager::CentralServerQueryServerList ( const CHostAddress& InetAddr )
+void CServerListManager::CentralServerQueryServerList ( const CHostAddress& InetAddr, const QString& ServerName )
 {
     QMutexLocker locker ( &Mutex );
 
@@ -443,6 +467,11 @@ void CServerListManager::CentralServerQueryServerList ( const CHostAddress& Inet
         // not in a vector object
         for ( int iIdx = 0; iIdx < iCurServerListSize; iIdx++ )
         {
+            if ( (ServerName != ServerList[iIdx].strName) )//&& (ServerName != "") )
+            {
+                continue;
+            }
+
             // copy list item
             vecServerInfo[iIdx] = ServerList[iIdx];
 
@@ -477,7 +506,7 @@ void CServerListManager::CentralServerQueryServerList ( const CHostAddress& Inet
                     // server (central server) per definition) and also it is
                     // not required to send this message, if the server is on
                     // the same computer
-                    pConnLessProtocol->CreateCLSendEmptyMesMes ( 
+                    pConnLessProtocol->CreateCLSendEmptyMesMes (
                         vecServerInfo[iIdx].HostAddr,
                         InetAddr );
                 }
@@ -576,7 +605,8 @@ void CServerListManager::SlaveServerRegisterServer ( const bool bIsRegister )
     const QString strCurCentrServAddr =
             NetworkUtil::GetCentralServerAddress ( eCentralServerAddressType,
                                                    strCentralServerAddress );
-
+    qInfo() << qUtf8Printable( QString( "Central Server IP: %1" )
+                .arg( strCurCentrServAddr ) );
     // For the slave server, the slave server properties are stored in the
     // very first item in the server list (which is actually no server list
     // but just one item long for the slave server).
