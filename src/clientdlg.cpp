@@ -4,6 +4,9 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  ZHAW - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -33,19 +36,23 @@ CClientDlg::CClientDlg ( CClient*         pNCliP,
                          const bool       bNewShowComplRegConnList,
                          const bool       bShowAnalyzerConsole,
                          const bool       bMuteStream,
-                         QWidget*         parent ) :
+                         CServer*         pSer,
+                         QWidget*         parent,
+                         Qt::WindowFlags  f ) :
     CBaseDlg            ( parent, Qt::Window ), // use Qt::Window to get min/max window buttons
     pClient             ( pNCliP ),
     pSettings           ( pNSetP ),
     bConnectDlgWasShown ( false ),
     bMIDICtrlUsed       ( !strMIDISetup.isEmpty() ),
+    ClientSettingsDlg   ( pNCliP, pNSetP, parent ),
     eLastRecorderState  ( RS_UNDEFINED ),       // for SetMixerBoardDeco
     eLastDesign         ( GD_ORIGINAL ),        //          "
-    ClientSettingsDlg   ( pNCliP, pNSetP, parent ),
     ChatDlg             ( parent ),
-    ConnectDlg          ( pNSetP, bNewShowComplRegConnList, parent ),
+    ConnectDlg          ( pNCliP, pNSetP, bNewShowComplRegConnList, parent ),
     AnalyzerConsole     ( pNCliP, parent ),
-    MusicianProfileDlg  ( pNCliP, parent )
+    MusicianProfileDlg  ( pNCliP, parent ),
+    pServer             ( pSer ),
+    SessionNameDlg      ( parent )
 {
     setupUi ( this );
 
@@ -225,14 +232,11 @@ CClientDlg::CClientDlg ( CClient*         pNCliP,
     lblGlobalInfoLabel->setStyleSheet ( ".QLabel { background: red; }" );
     lblGlobalInfoLabel->hide();
 
-    // prepare update check info label (invisible by default)
-    lblUpdateCheck->setText ( "<font color=\"red\"><b>" + QString ( APP_NAME ) + " " +
-                              tr ( "software upgrade available" ) + "</b></font>" );
-    lblUpdateCheck->hide();
-
     // setup timers
     TimerCheckAudioDeviceOk.setSingleShot ( true ); // only check once after connection
 
+    // p2p loopback is only for debug purposes, hide it for the normal user
+    chbP2pLoop->hide();
 
     // Connect on startup ------------------------------------------------------
     if ( !strConnOnStartupAddress.isEmpty() )
@@ -415,6 +419,15 @@ CClientDlg::CClientDlg ( CClient*         pNCliP,
     QObject::connect ( chbLocalMute, &QCheckBox::stateChanged,
         this, &CClientDlg::OnLocalMuteStateChanged );
 
+    QObject::connect ( chbP2p, &QCheckBox::stateChanged,
+        this, &CClientDlg::OnP2pStateChanged );
+
+    QObject::connect ( chbP2pLoop, &QCheckBox::stateChanged,
+        this, &CClientDlg::OnP2pLoopStateChanged );
+
+    QObject::connect ( chbEnableRecorder, &QCheckBox::stateChanged,
+        this, &CClientDlg::OnRecorderEnabledChanged );
+
     // timers
     QObject::connect ( &TimerSigMet, &QTimer::timeout,
         this, &CClientDlg::OnTimerSigMet );
@@ -463,6 +476,9 @@ CClientDlg::CClientDlg ( CClient*         pNCliP,
 
     QObject::connect ( pClient, &CClient::RecorderStateReceived,
         this, &CClientDlg::OnRecorderStateReceived );
+
+    QObject::connect ( pClient, &CClient::SessionNameChanged,
+        this, &CClientDlg::OnSessionNameChanged );
 
     // This connection is a special case. On receiving a licence required message via the
     // protocol, a modal licence dialog is opened. Since this blocks the thread, we need
@@ -550,6 +566,11 @@ CClientDlg::CClientDlg ( CClient*         pNCliP,
     QObject::connect ( &ConnectDlg, &CConnectDlg::accepted,
         this, &CClientDlg::OnConnectDlgAccepted );
 
+    QObject::connect ( pClient, &CClient::ServerConnection,
+        this, &CClientDlg::OnServerConnection );
+
+    QObject::connect ( pClient, &CClient::P2PChStateChange,
+        this, &CClientDlg::OnP2PChStateChange );
 
     // Initializations which have to be done after the signals are connected ---
     // start timer for status bar
@@ -607,6 +628,7 @@ void CClientDlg::closeEvent ( QCloseEvent* Event )
     MusicianProfileDlg.close();
     ConnectDlg.close();
     AnalyzerConsole.close();
+    SessionNameDlg.close();
 
     // if connected, terminate connection
     if ( pClient->IsRunning() )
@@ -620,6 +642,12 @@ void CClientDlg::closeEvent ( QCloseEvent* Event )
     pSettings->bConnectDlgShowAllMusicians = ConnectDlg.GetShowAllMusicians();
     pSettings->eChannelSortType            = MainMixerBoard->GetFaderSorting();
     pSettings->iNumMixerPanelRows          = MainMixerBoard->GetNumMixerPanelRows();
+
+    // turn off server if one is running
+    if (pServer)
+    {
+        pServer->OnAboutToQuit();
+    }
 
     // default implementation of this event handler routine
     Event->accept();
@@ -729,6 +757,8 @@ void CClientDlg::OnConnectDlgAccepted()
         // get the address from the connect dialog
         QString strSelectedAddress = ConnectDlg.GetSelectedAddress();
 
+        qInfo() << qUtf8Printable( QString( "DEBUG strSelectedAddress: %1" )
+                .arg( strSelectedAddress ) );
         // only store new host address in our data base if the address is
         // not empty and it was not a server list item (only the addresses
         // typed in manually are stored by definition)
@@ -782,6 +812,23 @@ void CClientDlg::OnConnectDlgAccepted()
     }
 }
 
+void CClientDlg::OnServerConnection( QString strReceivedServerIp,
+                                     QString strReseivedServerName )
+{
+    if ( !bConnectDlgWasShown )
+    {
+        // initiate connection
+        Connect ( strReceivedServerIp, strReseivedServerName );
+    }
+}
+
+
+void CClientDlg::OnP2PChStateChange(const int iChId, const bool bNewState)
+{
+    qDebug() << "Debug: CClientDlg::OnP2PChStateChange: A P2P channel" << iChId << "state has changed to" << bNewState;
+    MainMixerBoard->UpdateP2PChannelState(iChId, bNewState);
+}
+
 void CClientDlg::OnConnectDisconBut()
 {
     // the connect/disconnect button implements a toggle functionality
@@ -789,11 +836,12 @@ void CClientDlg::OnConnectDisconBut()
     {
         Disconnect();
         SetMixerBoardDeco( RS_UNDEFINED, pClient->GetGUIDesign() );
+        close();
     }
-    else
-    {
-        ShowConnectionSetupDialog();
-    }
+    // else
+    // {
+    //     ShowConnectionSetupDialog();
+    // }
 }
 
 void CClientDlg::OnClearAllStoredSoloMuteSettings()
@@ -861,13 +909,6 @@ void CClientDlg::OnCLVersionAndOSReceived ( CHostAddress           ,
     int serverSuffixIndex;
     QVersionNumber serverVersion = QVersionNumber::fromString ( strVersion, &serverSuffixIndex );
 
-    // only compare if the server version has no suffix (such as dev or beta)
-    if ( strVersion.size() == serverSuffixIndex && QVersionNumber::compare ( serverVersion, myVersion ) > 0 )
-    {
-        // show the label and hide it after one minute again
-        lblUpdateCheck->show();
-        QTimer::singleShot ( 60000, [this]() { lblUpdateCheck->hide(); } );
-    }
 #endif
 }
 
@@ -943,7 +984,7 @@ void CClientDlg::SetMyWindowTitle ( const int iNumClients )
     {
         // if --clientname is used, the APP_NAME must be the very first word in
         // the title, otherwise some user scripts do not work anymore, see #789
-        strWinTitle += QString ( APP_NAME ) + " " + pClient->strClientName + " ";
+        strWinTitle += QString ( APP_NAME ) + " "; // + pClient->strClientName + " ";
     }
 
     if ( iNumClients == 0 )
@@ -998,7 +1039,9 @@ void CClientDlg::ShowConnectionSetupDialog()
 {
     // show connect dialog
     bConnectDlgWasShown = true;
-    ConnectDlg.show();
+    //ConnectDlg.show();
+    ConnectDlg.setModal(true);
+    ConnectDlg.exec();
 
     // make sure dialog is upfront and has focus
     ConnectDlg.raise();
@@ -1008,7 +1051,9 @@ void CClientDlg::ShowConnectionSetupDialog()
 void CClientDlg::ShowMusicianProfileDialog()
 {
     // show musician profile dialog
-    MusicianProfileDlg.show();
+    //MusicianProfileDlg.show();
+    MusicianProfileDlg.setModal(true);
+    MusicianProfileDlg.exec();
 
     // make sure dialog is upfront and has focus
     MusicianProfileDlg.raise();
@@ -1018,7 +1063,9 @@ void CClientDlg::ShowMusicianProfileDialog()
 void CClientDlg::ShowGeneralSettings()
 {
     // open general settings dialog
-    ClientSettingsDlg.show();
+    //ClientSettingsDlg.show();
+    ClientSettingsDlg.setModal(true);
+    ClientSettingsDlg.exec();
 
     // make sure dialog is upfront and has focus
     ClientSettingsDlg.raise();
@@ -1027,11 +1074,12 @@ void CClientDlg::ShowGeneralSettings()
 
 void CClientDlg::ShowChatWindow ( const bool bForceRaise )
 {
-    ChatDlg.show();
-
     if ( bForceRaise )
     {
         // make sure dialog is upfront and has focus
+        ChatDlg.setModal(true);
+        ChatDlg.exec();
+
         ChatDlg.showNormal();
         ChatDlg.raise();
         ChatDlg.activateWindow();
@@ -1077,6 +1125,7 @@ void CClientDlg::OnChatStateChanged ( int value )
 void CClientDlg::OnLocalMuteStateChanged ( int value )
 {
     pClient->SetMuteOutStream ( value == Qt::Checked );
+    OnP2PChStateChange(MainMixerBoard->GetMyChannelID(), value == Qt::Checked);
 
     // show/hide info label
     if ( value == Qt::Checked )
@@ -1088,6 +1137,23 @@ void CClientDlg::OnLocalMuteStateChanged ( int value )
         lblGlobalInfoLabel->hide();
     }
 }
+
+void CClientDlg::OnP2pStateChanged( int value )
+{
+    pClient->SetP2pEnabled ( value == Qt::Checked );
+    OnP2PChStateChange(MainMixerBoard->GetMyChannelID(), value == Qt::Checked);
+}
+
+void CClientDlg::OnP2pLoopStateChanged( int value )
+{
+    pClient->SetP2pLoopEnabled ( value == Qt::Checked );
+}
+
+void CClientDlg::OnRecorderEnabledChanged( int value )
+{
+    pClient->SetRecorderState( value == Qt::Checked, edtCurrentSessionDir->text() );
+}
+
 
 void CClientDlg::OnTimerSigMet()
 {
@@ -1444,5 +1510,19 @@ void CClientDlg::SetMixerBoardDeco(  const ERecorderState newRecorderState, cons
                     "                   left: 7px;"
                     "                   color: rgb(0,0,0); }" );
         }
+    }
+}
+void CClientDlg::OnSessionNameChanged ( const QString newServerName )
+{
+    SessionNameDlg.setServerName( newServerName );
+
+    if( !SessionNameDlg.isVisible() )
+    {
+        SessionNameDlg.setModal(true);
+        SessionNameDlg.exec();
+
+        // make sure dialog is upfront and has focus
+        SessionNameDlg.raise();
+        SessionNameDlg.activateWindow();
     }
 }

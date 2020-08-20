@@ -4,6 +4,9 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  ZHAW - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -26,10 +29,12 @@
 
 
 /* Implementation *************************************************************/
-CConnectDlg::CConnectDlg ( CClientSettings* pNSetP,
+CConnectDlg::CConnectDlg ( CClient*         pNCliP,
+                           CClientSettings* pNSetP,
                            const bool       bNewShowCompleteRegList,
                            QWidget*         parent )
     : CBaseDlg                   ( parent, Qt::Dialog ),
+      pClient                    ( pNCliP ),
       pSettings                  ( pNSetP ),
       strSelectedAddress         ( "" ),
       strSelectedServerName      ( "" ),
@@ -243,7 +248,7 @@ void CConnectDlg::RequestServerList()
                                              CentralServerAddress ) )
     {
         // send the request for the server list
-        emit ReqServerListQuery ( CentralServerAddress );
+        emit ReqServerListQuery ( CentralServerAddress, "" );
 
         // start timer, if this message did not get any respond to retransmit
         // the server list request message
@@ -274,7 +279,7 @@ void CConnectDlg::OnTimerReRequestServList()
     {
         // note that this is a connection less message which may get lost
         // and therefore it makes sense to re-transmit it
-        emit ReqServerListQuery ( CentralServerAddress );
+        emit ReqServerListQuery ( CentralServerAddress, "" );
     }
 }
 
@@ -282,38 +287,14 @@ void CConnectDlg::SetServerList ( const CHostAddress&         InetAddr,
                                   const CVector<CServerInfo>& vecServerInfo,
                                   const bool                  bIsReducedServerList )
 {
-    // If the normal list was received, we do not accept any further list
-    // updates (to avoid the reduced list overwrites the normal list (#657)). Also,
-    // we only accept a server list from the server address we have sent the
-    // request for this to (note that we cannot use the port number since the
-    // receive port and send port might be different at the central server).
-    if ( bServerListReceived ||
-         ( InetAddr.InetAddr != CentralServerAddress.InetAddr ) )
+    if (pClient->GetWaitingForIp())
     {
         return;
     }
 
-    // special treatment if a reduced server list was received
-    if ( bIsReducedServerList )
-    {
-        // make sure we only apply the reduced version list once
-        if ( bReducedServerListReceived )
-        {
-            // do nothing
-            return;
-        }
-        else
-        {
-            bReducedServerListReceived = true;
-        }
-    }
-    else
-    {
-        // set flag and disable timer for resend server list request if full list
-        // was received (i.e. not the reduced list)
-        bServerListReceived = true;
-        TimerReRequestServList.stop();
-    }
+    // set flag and disable timer for resend server list request
+    bServerListReceived = true;
+    TimerReRequestServList.stop();
 
     // first clear list
     lvwServers->clear();

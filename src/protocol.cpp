@@ -4,6 +4,9 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  ZHAW - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -804,12 +807,12 @@ if ( rand() < ( RAND_MAX / 2 ) ) return false;
                     EvaluateConClientListMes ( vecbyMesBodyDataRef );
                     break;
 
-                case PROTMESSID_REQ_CONN_CLIENTS_LIST:
-                    EvaluateReqConnClientsList();
-                    break;
-
                 case PROTMESSID_CHANNEL_INFOS:
                     EvaluateChanInfoMes ( vecbyMesBodyDataRef );
+                    break;
+
+                case PROTMESSID_REQ_CONN_CLIENTS_LIST:
+                    EvaluateReqConnClientsList( vecbyMesBodyData );
                     break;
 
                 case PROTMESSID_REQ_CHANNEL_INFOS:
@@ -894,7 +897,7 @@ if ( rand() < ( RAND_MAX / 2 ) ) return false;
         break;
 
     case PROTMESSID_CLM_REQ_SERVER_LIST:
-        EvaluateCLReqServerListMes ( InetAddr );
+        EvaluateCLReqServerListMes ( InetAddr, vecbyMesBodyData);
         break;
 
     case PROTMESSID_CLM_SEND_EMPTY_MESSAGE:
@@ -1157,7 +1160,6 @@ void CProtocol::CreateConClientListMes ( const CVector<CChannelInfo>& vecChanInf
     // build data vector
     CVector<uint8_t> vecData ( 0 );
     int              iPos = 0; // init position pointer
-
     for ( int i = 0; i < iNumClients; i++ )
     {
         // convert strings to utf-8
@@ -1170,7 +1172,12 @@ void CProtocol::CreateConClientListMes ( const CVector<CChannelInfo>& vecChanInf
             4 /* instrument */ + 1 /* skill level */ +
             4 /* IP address */ +
             2 /* utf-8 str. size */ + strUTF8Name.size() +
-            2 /* utf-8 str. size */ + strUTF8City.size();
+            2 /* utf-8 str. size */ + strUTF8City.size() +
+            2 /* port number */ +
+            4 /* public ip */ +
+            2 /* public port */ +
+            4 /* local ip */ +
+            2 /* local port */ ;
 
         // make space for new data
         vecData.Enlarge ( iCurListEntrLen );
@@ -1200,6 +1207,26 @@ void CProtocol::CreateConClientListMes ( const CVector<CChannelInfo>& vecChanInf
 
         // city
         PutStringUTF8OnStream ( vecData, iPos, strUTF8City );
+
+        // port number (2 bytes)
+        PutValOnStream ( vecData, iPos,
+            static_cast<uint32_t> ( vecChanInfo[i].iPort ), 2 );
+
+        // public IP address (4 bytes)
+        PutValOnStream ( vecData, iPos,
+            static_cast<uint32_t> ( vecChanInfo[i].PIpAddr ), 4 );
+
+        // public port number (2 bytes)
+        PutValOnStream ( vecData, iPos,
+            static_cast<uint32_t> ( vecChanInfo[i].PiPort ), 2 );
+
+        // local IP address (4 bytes)
+        PutValOnStream ( vecData, iPos,
+            static_cast<uint32_t> ( vecChanInfo[i].LIpAddr ), 4 );
+
+        // local port number (2 bytes)
+        PutValOnStream ( vecData, iPos,
+            static_cast<uint32_t> ( vecChanInfo[i].LiPort ), 2 );
     }
 
     CreateAndSendMessage ( PROTMESSID_CONN_CLIENTS_LIST, vecData );
@@ -1259,6 +1286,26 @@ bool CProtocol::EvaluateConClientListMes ( const CVector<uint8_t>& vecData )
             return true; // return error code
         }
 
+        // port number (2 bytes)
+        const int iPort =
+            static_cast<int> ( GetValFromStream ( vecData, iPos, 2 ) );
+
+        // public IpAddr (4 bytes)
+        const int PIpAddr =
+            static_cast<int> ( GetValFromStream ( vecData, iPos, 4 ) );
+
+        // public port number (2 bytes)
+        const int PiPort =
+            static_cast<int> ( GetValFromStream ( vecData, iPos, 2 ) );
+
+        // local IpAddr (4 bytes)
+        const int LIpAddr =
+            static_cast<int> ( GetValFromStream ( vecData, iPos, 4 ) );
+
+        // local port number (2 bytes)
+        const int LiPort =
+            static_cast<int> ( GetValFromStream ( vecData, iPos, 2 ) );
+
         // add channel information to vector
         vecChanInfo.Add ( CChannelInfo ( iChanID,
                                          iIpAddr,
@@ -1266,7 +1313,12 @@ bool CProtocol::EvaluateConClientListMes ( const CVector<uint8_t>& vecData )
                                          eCountry,
                                          strCurCity,
                                          iInstrument,
-                                         eSkillLevel ) );
+                                         eSkillLevel,
+                                         iPort,
+                                         PIpAddr,
+                                         PiPort,
+                                         LIpAddr,
+                                         LiPort ) );
     }
 
     // check size: all data is read, the position must now be at the end
@@ -1281,15 +1333,55 @@ bool CProtocol::EvaluateConClientListMes ( const CVector<uint8_t>& vecData )
     return false; // no error
 }
 
-void CProtocol::CreateReqConnClientsList()
+void CProtocol::CreateReqConnClientsList( const CHostAddress& PInetAddr,
+                                          const CHostAddress& LInetAddr )
 {
-    CreateAndSendMessage ( PROTMESSID_REQ_CONN_CLIENTS_LIST, CVector<uint8_t> ( 0 ) );
+    CVector<uint8_t> vecData ( 0 );
+    int              iPos = 0; // init position pointer
+
+    const int vecSize =
+        4 /* local IP address */ +
+        2 /* local port number */ +
+        4 /* public IP address */ +
+        2 /* public port number */;
+
+    vecData.Enlarge ( vecSize );
+
+    PutValOnStream ( vecData, iPos, static_cast<uint32_t> ( LInetAddr.InetAddr.toIPv4Address() ), 4 );
+    PutValOnStream ( vecData, iPos, static_cast<uint32_t> ( LInetAddr.iPort ), 2 );
+    PutValOnStream ( vecData, iPos, static_cast<uint32_t> ( PInetAddr.InetAddr.toIPv4Address() ), 4 );
+    PutValOnStream ( vecData, iPos, static_cast<uint32_t> ( PInetAddr.iPort ), 2 );
+
+    CreateAndSendMessage ( PROTMESSID_REQ_CONN_CLIENTS_LIST, vecData );
 }
 
-bool CProtocol::EvaluateReqConnClientsList()
+bool CProtocol::EvaluateReqConnClientsList( const CVector<uint8_t>& vecData )
 {
+    int              iPos     = 0; // init position pointer
+    const int        iDataLen = vecData.Size();
+    CHostAddress     localAddress;
+    CHostAddress     publicAddress;
+
+    // check size (the first 6 bytes)
+    if ( iDataLen == 12 )
+    {
+        // ip address (4 bytes)
+        localAddress.InetAddr.setAddress( static_cast<quint32> ( GetValFromStream ( vecData, iPos, 4 ) ) );
+
+        // port number (2 bytes)
+        localAddress.iPort = static_cast<quint16> ( GetValFromStream ( vecData, iPos, 2 ) );
+
+        // ip address (4 bytes)
+        publicAddress.InetAddr.setAddress( static_cast<quint32> ( GetValFromStream ( vecData, iPos, 4 ) ) );
+
+        // port number (2 bytes)
+        publicAddress.iPort = static_cast<quint16> ( GetValFromStream ( vecData, iPos, 2 ) );
+    }
+
+    emit ClientIpsRec( localAddress, publicAddress);
+
     // invoke message action
-    emit ReqConnClientsList();
+    //emit ReqConnClientsList();
 
     return false; // no error
 }
@@ -2169,6 +2261,12 @@ void CProtocol::CreateCLServerListMes ( const CHostAddress&        InetAddr,
     CVector<uint8_t> vecData ( 0 );
     int              iPos = 0; // init position pointer
 
+    // for p2p the clients need to know their public ip and port number
+
+    vecData.Enlarge ( 6 );
+    PutValOnStream ( vecData, iPos, static_cast<uint32_t> (InetAddr.InetAddr.toIPv4Address() ), 4 );
+    PutValOnStream ( vecData, iPos, static_cast<uint32_t> ( InetAddr.iPort ), 2 );
+
     for ( int i = 0; i < iNumServers; i++ )
     {
         // convert server list strings to utf-8
@@ -2233,6 +2331,12 @@ bool CProtocol::EvaluateCLServerListMes ( const CHostAddress&     InetAddr,
     int                  iPos     = 0; // init position pointer
     const int            iDataLen = vecData.Size();
     CVector<CServerInfo> vecServerInfo ( 0 );
+    CHostAddress         publicAddress;
+
+    // for p2p the clients need to know their public ip and port number
+    publicAddress.InetAddr.setAddress(static_cast<quint32> ( GetValFromStream ( vecData, iPos, 4 ) ) );
+    publicAddress.iPort = static_cast<quint16> ( GetValFromStream ( vecData, iPos, 2 ) );
+    emit CLPublicIpRec ( publicAddress );
 
     while ( iPos < iDataLen )
     {
@@ -2303,6 +2407,9 @@ bool CProtocol::EvaluateCLServerListMes ( const CHostAddress&     InetAddr,
     {
         return true; // return error code
     }
+
+    // invoke message action
+    emit CLServerIpReceived ( InetAddr, vecServerInfo );
 
     // invoke message action
     emit CLServerListReceived ( InetAddr, vecServerInfo );
@@ -2407,17 +2514,40 @@ bool CProtocol::EvaluateCLRedServerListMes ( const CHostAddress&     InetAddr,
     return false; // no error
 }
 
-void CProtocol::CreateCLReqServerListMes ( const CHostAddress& InetAddr )
+void CProtocol::CreateCLReqServerListMes ( const CHostAddress& InetAddr,
+                                           const QString& ServerName )
 {
+    // Parse server name into vector
+    int iPos = 0; // init position pointer
+    const QByteArray strUTF8Name = ServerName.toUtf8();
+    const int iEntrLen = 2 /* name utf-8 string size */ + strUTF8Name.size();
+    // build data vector
+    CVector<uint8_t> vecData ( iEntrLen );
+    PutStringUTF8OnStream ( vecData, iPos, strUTF8Name );
+
     CreateAndImmSendConLessMessage ( PROTMESSID_CLM_REQ_SERVER_LIST,
-                                     CVector<uint8_t> ( 0 ),
+                                     vecData,
                                      InetAddr );
 }
 
-bool CProtocol::EvaluateCLReqServerListMes ( const CHostAddress& InetAddr )
+bool CProtocol::EvaluateCLReqServerListMes ( const CHostAddress& InetAddr, const CVector<uint8_t>& vecData )
 {
+    //get servername from message
+    int             iPos     = 0; // init position pointer
+    QString         serverName;
+
+     // server name
+    if ( GetStringFromStream ( vecData,
+                               iPos,
+                               MAX_LEN_SERVER_NAME,
+                               serverName ) )
+    {
+        return true; // return error code
+    }
+    qInfo() << "DEBUG " << serverName << " " << InetAddr.toString() <<  endl;
+
     // invoke message action
-    emit CLReqServerList ( InetAddr );
+    emit CLReqServerList ( InetAddr, serverName );
 
     return false; // no error
 }
@@ -2776,12 +2906,22 @@ bool CProtocol::EvaluateCLChannelLevelListMes  ( const CHostAddress&     InetAdd
 }
 
 void CProtocol::CreateCLRegisterServerResp  ( const CHostAddress& InetAddr,
-                                              const ESvrRegResult eResult )
+                                              const ESvrRegResult eResult,
+                                              const QString strName )
 {
     int              iPos = 0; // init position pointer
     CVector<uint8_t> vecData( 1 );
+    const QByteArray strUTF8Name = strName.toUtf8();
 
     PutValOnStream ( vecData, iPos, static_cast<uint32_t> ( eResult ), 1 );
+
+    const int iCurListEntrLen = 2 /* utf-8 str. size */ + strUTF8Name.size();
+
+    // make space for new data
+    vecData.Enlarge ( iCurListEntrLen );
+
+    // name
+    PutStringUTF8OnStream ( vecData, iPos, strUTF8Name );
 
     CreateAndImmSendConLessMessage ( PROTMESSID_CLM_REGISTER_SERVER_RESP,
                                      vecData,
@@ -2794,7 +2934,7 @@ bool CProtocol::EvaluateCLRegisterServerResp ( const CHostAddress&     InetAddr,
     int       iPos     = 0; // init position pointer
     const int iDataLen = vecData.Size();
 
-    if ( iDataLen != 1 )
+    if ( iDataLen < 1 )
     {
         return true;
     }
@@ -2810,8 +2950,19 @@ bool CProtocol::EvaluateCLRegisterServerResp ( const CHostAddress&     InetAddr,
         return true;
     }
 
+    // name
+    QString strName;
+    if ( GetStringFromStream ( vecData,
+                               iPos,
+                               MAX_LEN_SERVER_NAME,
+                               strName ) )
+    {
+        return true; // return error code
+    }
+
+
     // invoke message action
-    emit CLRegisterServerResp ( InetAddr,  static_cast<ESvrRegResult> ( iSvrRegResult ) );
+    emit CLRegisterServerResp ( InetAddr,  static_cast<ESvrRegResult> ( iSvrRegResult ), strName );
 
     return false; // no error
 }

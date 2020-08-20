@@ -4,6 +4,9 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  ZHAW - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -254,7 +257,8 @@ CServer::CServer ( const int          iNewMaxNumChan,
     bAutoRunMinimized           ( false ),
     eLicenceType                ( eNLicenceType ),
     bDisconnectAllClientsOnQuit ( bNDisconnectAllClientsOnQuit ),
-    pSignalHandler              ( CSignalHandler::getSingletonP() )
+    pSignalHandler              ( CSignalHandler::getSingletonP() ),
+    firstRegistrationDone       ( false )
 {
     int iOpusError;
     int i;
@@ -530,6 +534,9 @@ inline void CServer::connectChannelSignalsToServerSlots()
     QObject::connect ( &vecChannels[iCurChanID], &CChannel::ReqConnClientsList,
                        this, pOnReqConnClientsListCh );
 
+    QObject::connect ( &vecChannels[iCurChanID], &CChannel::NewClientsListToAll,
+                       this, &CServer::OnNewClientsListToAll );
+
     // channel info has changed
     QObject::connect ( &vecChannels[iCurChanID], &CChannel::ChanInfoHasChanged,
                        this, &CServer::CreateAndSendChanListForAllConChannels );
@@ -744,6 +751,7 @@ void CServer::OnHandledSignal ( int sigNum )
     case SIGINT:
     case SIGTERM:
         // This should trigger OnAboutToQuit
+        OnAboutToQuit();
         QCoreApplication::instance()->exit();
         break;
 
@@ -1348,8 +1356,14 @@ CVector<CChannelInfo> CServer::CreateChannelList()
             // append channel ID, IP address and channel name to storing vectors
             vecChanInfo.Add ( CChannelInfo (
                 i, // ID
-                QHostAddress ( QHostAddress::Null ).toIPv4Address(), // use invalid IP address (for privacy reason, #316)
-                vecChannels[i].GetChanInfo() ) );
+                vecChannels[i].GetAddress().InetAddr.toIPv4Address(), // IP needed for p2p
+                //QHostAddress ( QHostAddress::Null ).toIPv4Address(), // use invalid IP address (for privacy reason, #316)
+                vecChannels[i].GetChanInfo(),
+                vecChannels[i].GetAddress().iPort,
+                vecChannels[i].PInetAddr.InetAddr.toIPv4Address(),
+                vecChannels[i].PInetAddr.iPort,
+                vecChannels[i].LInetAddr.InetAddr.toIPv4Address(),
+                vecChannels[i].LInetAddr.iPort ) );
         }
     }
 

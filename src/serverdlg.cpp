@@ -334,11 +334,6 @@ lvwClients->setMinimumHeight ( 140 );
 
     tedWelcomeMessage->setText ( pServer->GetWelcomeMessage() );
 
-    // prepare update check info label (invisible by default)
-    lblUpdateCheck->setText ( "<font color=\"red\"><b>" + QString ( APP_NAME ) + " " +
-                              tr ( "software upgrade available" ) + "</b></font>" );
-    lblUpdateCheck->hide();
-
     // update GUI dependencies
     UpdateGUIDependencies();
 
@@ -633,11 +628,6 @@ void CServerDlg::OnCLVersionAndOSReceived ( CHostAddress           ,
     int serverSuffixIndex;
     QVersionNumber serverVersion = QVersionNumber::fromString ( strVersion, &serverSuffixIndex );
 
-    // only compare if the server version has no suffix (such as dev or beta)
-    if ( strVersion.size() == serverSuffixIndex && QVersionNumber::compare ( serverVersion, myVersion ) > 0 )
-    {
-        lblUpdateCheck->show();
-    }
 #endif
 }
 

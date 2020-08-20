@@ -4,6 +4,9 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  ZHAW - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -118,7 +121,8 @@ public:
     void CreateChanPanMes ( const int iChanID, const float fPan );
     void CreateMuteStateHasChangedMes ( const int iChanID, const bool bIsMuted );
     void CreateConClientListMes ( const CVector<CChannelInfo>& vecChanInfo );
-    void CreateReqConnClientsList();
+    void CreateReqConnClientsList( const CHostAddress& PInetAddr,
+                                   const CHostAddress& LInetAddr);
     void CreateChanInfoMes ( const CChannelCoreInfo ChanInfo );
     void CreateReqChanInfoMes();
     void CreateChatTextMes ( const QString strChatText );
@@ -151,7 +155,8 @@ void CreateReqChannelLevelListMes();
                                          const CVector<CServerInfo> vecServerInfo );
     void CreateCLRedServerListMes      ( const CHostAddress&        InetAddr,
                                          const CVector<CServerInfo> vecServerInfo );
-    void CreateCLReqServerListMes      ( const CHostAddress& InetAddr );
+    void CreateCLReqServerListMes      ( const CHostAddress& InetAddr,
+                                         const QString& ServerName );
     void CreateCLSendEmptyMesMes       ( const CHostAddress& InetAddr,
                                          const CHostAddress& TargetInetAddr );
     void CreateCLEmptyMes              ( const CHostAddress& InetAddr );
@@ -165,7 +170,8 @@ void CreateReqChannelLevelListMes();
                                          const CVector<uint16_t>& vecLevelList,
                                          const int                iNumClients );
     void CreateCLRegisterServerResp    ( const CHostAddress& InetAddr,
-                                         const ESvrRegResult eResult );
+                                         const ESvrRegResult eResult,
+                                         const QString ServerName );
 
     static bool ParseMessageFrame ( const CVector<uint8_t>& vecbyData,
                                     const int               iNumBytesIn,
@@ -273,7 +279,7 @@ protected:
     bool EvaluateChanPanMes             ( const CVector<uint8_t>& vecData );
     bool EvaluateMuteStateHasChangedMes ( const CVector<uint8_t>& vecData );
     bool EvaluateConClientListMes       ( const CVector<uint8_t>& vecData );
-    bool EvaluateReqConnClientsList();
+    bool EvaluateReqConnClientsList     ( const CVector<uint8_t>& vecData );
     bool EvaluateChanInfoMes            ( const CVector<uint8_t>& vecData );
     bool EvaluateReqChanInfoMes();
     bool EvaluateChatTextMes            ( const CVector<uint8_t>& vecData );
@@ -299,7 +305,8 @@ protected:
                                            const CVector<uint8_t>& vecData );
     bool EvaluateCLRedServerListMes      ( const CHostAddress&     InetAddr,
                                            const CVector<uint8_t>& vecData );
-    bool EvaluateCLReqServerListMes      ( const CHostAddress&     InetAddr );
+    bool EvaluateCLReqServerListMes      ( const CHostAddress&     InetAddr,
+                                           const CVector<uint8_t>& vecData );
     bool EvaluateCLSendEmptyMesMes       ( const CVector<uint8_t>& vecData );
     bool EvaluateCLDisconnectionMes      ( const CHostAddress&     InetAddr );
     bool EvaluateCLVersionAndOSMes       ( const CHostAddress&     InetAddr,
@@ -311,6 +318,8 @@ protected:
     bool EvaluateCLChannelLevelListMes   ( const CHostAddress&     InetAddr,
                                            const CVector<uint8_t>& vecData );
     bool EvaluateCLRegisterServerResp    ( const CHostAddress&     InetAddr,
+                                           const CVector<uint8_t>& vecData );
+    bool EvaluateCLSendIpsToServer       ( const CHostAddress&     InetAddr,
                                            const CVector<uint8_t>& vecData );
 
     int                     iOldRecID;
@@ -377,7 +386,10 @@ signals:
                                         CVector<CServerInfo>   vecServerInfo );
     void CLRedServerListReceived      ( CHostAddress           InetAddr,
                                         CVector<CServerInfo>   vecServerInfo );
-    void CLReqServerList              ( CHostAddress           InetAddr );
+    void CLServerIpReceived           ( CHostAddress           InetAddr,
+                                        CVector<CServerInfo>   vecServerInfo );
+    void CLReqServerList              ( CHostAddress           InetAddr,
+                                        QString                ServerName );
     void CLSendEmptyMes               ( CHostAddress           TargetInetAddr );
     void CLDisconnection              ( CHostAddress           InetAddr );
     void CLVersionAndOSReceived       ( CHostAddress           InetAddr,
@@ -390,5 +402,9 @@ signals:
     void CLChannelLevelListReceived   ( CHostAddress           InetAddr,
                                         CVector<uint16_t>      vecLevelList );
     void CLRegisterServerResp         ( CHostAddress           InetAddr,
-                                        ESvrRegResult          eStatus );
+                                        ESvrRegResult          eStatus,
+                                        QString                strName );
+    void CLPublicIpRec                ( CHostAddress           InetAddr );
+    void ClientIpsRec                 ( CHostAddress           LocalAddr,
+                                        CHostAddress           PublicInetAddr );
 };

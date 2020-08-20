@@ -4,20 +4,23 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  ZHAW - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 2 of the License, or (at your option) any later 
+ * Foundation; either version 2 of the License, or (at your option) any later
  * version.
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT 
+ * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more 
+ * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
  * details.
  *
  * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 
+ * this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  *
 \******************************************************************************/
@@ -69,7 +72,7 @@ class CChannel : public QObject
 public:
     // we have to make "server" the default since I do not see a chance to
     // use constructor initialization in the server for a vector of channels
-    CChannel ( const bool bNIsServer = true );
+    CChannel ( const bool bNIsServer = true, const bool bNP2pType = false );
 
     void PutProtcolData ( const int               iRecCounter,
                           const int               iRecID,
@@ -87,7 +90,15 @@ public:
                              const CVector<uint8_t>& vecbyNPacket,
                              const int               iNPacketLen );
 
-    void ResetTimeOutCounter() { iConTimeOut = iConTimeOutStartVal; }
+    void ResetTimeOutCounter( const bool isP2P )
+    {
+        if ( isP2P )
+        {
+            iConTimeOut = SYSTEM_SAMPLE_RATE_HZ;
+        }
+        else { iConTimeOut = iConTimeOutStartVal; }
+    }
+
     bool IsConnected() const { return iConTimeOut > 0; }
     void Disconnect();
 
@@ -97,6 +108,10 @@ public:
     void SetAddress ( const CHostAddress NAddr ) { InetAddr = NAddr; }
     bool GetAddress ( CHostAddress& RetAddr );
     const CHostAddress& GetAddress() const { return InetAddr; }
+
+    void SetKey ( const CHostAddress LAddr, const CHostAddress PAddr ) { LInetAddr = LAddr; PInetAddr = PAddr;}
+    int MatchesAddresses ( const CHostAddress& LookupAddr );
+
 
     void ResetInfo() { ChannelInfo = CChannelCoreInfo(); } // reset does not emit a message
     QString GetName();
@@ -153,7 +168,7 @@ public:
 
     // network protocol interface
     void CreateJitBufMes ( const int iJitBufSize )
-    { 
+    {
         if ( ProtocolIsEnabled() )
         {
             Protocol.CreateJitBufMes ( iJitBufSize );
@@ -163,7 +178,9 @@ public:
     void CreateReqNetwTranspPropsMes()                       { Protocol.CreateReqNetwTranspPropsMes(); }
     void CreateReqSplitMessSupportMes()                      { Protocol.CreateReqSplitMessSupportMes(); }
     void CreateReqJitBufMes()                                { Protocol.CreateReqJitBufMes(); }
-    void CreateReqConnClientsList()                          { Protocol.CreateReqConnClientsList(); }
+    void CreateReqConnClientsList()
+        { Protocol.CreateReqConnClientsList( PInetAddr, LInetAddr ); }
+
     void CreateChatTextMes ( const QString& strChatText )    { Protocol.CreateChatTextMes ( strChatText ); }
     void CreateLicReqMes ( const ELicenceType eLicenceType ) { Protocol.CreateLicenceRequiredMes ( eLicenceType ); }
 
@@ -181,6 +198,22 @@ void CreateReqChannelLevelListMes() { Protocol.CreateReqChannelLevelListMes(); }
     double UpdateAndGetLevelForMeterdB ( const CVector<short>& vecsAudio,
                                          const int             iInSize,
                                          const bool            bIsStereoIn );
+
+    void SetIsServer( const bool isServer) { bIsServer = isServer; }
+
+    void SetP2pType ( const bool p2pType ) { bP2pType = p2pType; }
+    bool GetP2pType () { return bP2pType; }
+
+    void SetP2pEnabled ( const bool p2pEnabled ) { bP2pEnabled = p2pEnabled; }
+
+    int GetChannelID () { return iThisChanID; }
+    void SetChannelID ( int iChanID ) { iThisChanID = iChanID; }
+
+    CHostAddress            PInetAddr; // needed for p2p, public address of own device (not connected)
+    CHostAddress            LInetAddr; // needed for p2p, local address of own device (not connected)
+    bool                    bPublicIpReceived;
+    double GetP2pGain () { return p2pGain; }
+    void SetP2pGain ( const double dGain ) { p2pGain = dGain; }
 
 protected:
     bool ProtocolIsEnabled();
@@ -243,6 +276,11 @@ protected:
 
     CStereoSignalLevelMeter SignalLevelMeter;
 
+    bool                    bP2pType;
+    bool                    bP2pEnabled;
+    int                     iThisChanID;
+    double                  p2pGain;
+
 public slots:
     void OnSendProtMessage ( CVector<uint8_t> vecMessage );
     void OnJittBufSizeChange ( int iNewJitBufSize );
@@ -257,13 +295,13 @@ public slots:
     void OnVersionAndOSReceived ( COSUtil::EOpSystemType eOSType,
                                   QString                strVersion );
 
-    void OnParseMessageBody ( CVector<uint8_t> vecbyMesBodyData,
-                              int              iRecCounter,
-                              int              iRecID )
-    {
-        // note that the return value is ignored here
-        Protocol.ParseMessageBody ( vecbyMesBodyData, iRecCounter, iRecID );
-    }
+    // void OnParseMessageBody ( CVector<uint8_t> vecbyMesBodyData,
+    //                           int              iRecCounter,
+    //                           int              iRecID )
+    // {
+    //     // note that the return value is ignored here
+    //     Protocol.ParseMessageBody ( vecbyMesBodyData, iRecCounter, iRecID );
+    // }
 
     void OnProtcolMessageReceived ( int              iRecCounter,
                                     int              iRecID,
@@ -281,6 +319,11 @@ public slots:
     }
 
     void OnNewConnection() { emit NewConnection(); }
+
+    void OnClientIDReceived ( int iChanID ) { iThisChanID = iChanID; }
+
+    void OnClientIpsRec ( CHostAddress           LocalAddr,
+                          CHostAddress           PublicAddr );
 
 signals:
     void MessReadyForSending ( CVector<uint8_t> vecMessage );
@@ -305,8 +348,9 @@ signals:
     void DetectedCLMessage ( CVector<uint8_t> vecbyMesBodyData,
                              int              iRecID,
                              CHostAddress     RecHostAddr );
+    void NewClientsListToAll();
 
-    void ParseMessageBody ( CVector<uint8_t> vecbyMesBodyData,
-                            int              iRecCounter,
-                            int              iRecID );
+    // void ParseMessageBody ( CVector<uint8_t> vecbyMesBodyData,
+    //                         int              iRecCounter,
+    //                         int              iRecID );
 };

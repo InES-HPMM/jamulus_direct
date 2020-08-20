@@ -4,6 +4,9 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  ZHAW - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -29,6 +32,7 @@
 #include <QString>
 #include <QDateTime>
 #include <QMutex>
+#include <QTimer>
 #ifdef USE_OPUS_SHARED_LIB
 # include "opus/opus_custom.h"
 #else
@@ -66,6 +70,7 @@
 #  endif
 # endif
 #endif
+#include "recorder/jamcontroller.h"
 
 /* Definitions ****************************************************************/
 // audio in fader range
@@ -101,6 +106,9 @@
 #define OPUS_NUM_BYTES_STEREO_NORMAL_QUALITY_DBLE_FRAMESIZE 71
 #define OPUS_NUM_BYTES_STEREO_HIGH_QUALITY_DBLE_FRAMESIZE   165
 
+// no valid channel number
+#define INVALID_CHANNEL_ID                  ( MAX_NUM_CHANNELS + 1 )
+
 
 /* Classes ********************************************************************/
 class CClient : public QObject
@@ -113,7 +121,10 @@ public:
               const QString& strMIDISetup,
               const bool     bNoAutoJackConnect,
               const QString& strNClientName,
-              const bool     bNMuteMeInPersonalMix );
+              const bool     bNMuteMeInPersonalMix,
+              const QString& strCentralServer,
+              const int      iNewMaxNumChan,
+              const bool     localServer );
 
     virtual ~CClient();
 
@@ -238,7 +249,7 @@ public:
 
     void SetMuteOutStream ( const bool bDoMute ) { bMuteOutStream = bDoMute; }
 
-    void SetRemoteChanGain ( const int iId, const float fGain, const bool bIsMyOwnFader );
+    void SetRemoteChanGain ( const int iId, const float fGain, const bool bIsMyOwnFader, const bool bDoServerUpdate, const bool bDoClientUpdate );
 
     void SetRemoteChanPan ( const int iId, const float fPan )
         { Channel.SetRemoteChanPan ( iId, fPan ); }
@@ -250,6 +261,16 @@ public:
 
     void CreateCLPingMes()
         { ConnLessProtocol.CreateCLPingMes ( Channel.GetAddress(), PreparePingMessage() ); }
+
+    void CreateCLPingMesP2p()
+        {
+            for ( int i = 0; i < p2pNumClientIps; i++ )
+            {
+                ConnLessProtocol.CreateCLPingMes ( p2pChannels[i].GetAddress(), PreparePingMessage() );
+            }
+        }
+
+    void OnTimerPingP2pClients() { CreateCLPingMesP2p(); }
 
     void CreateCLServerListPingMes ( const CHostAddress& InetAddr )
     {
@@ -264,8 +285,9 @@ public:
     void CreateCLServerListReqConnClientsListMes ( const CHostAddress& InetAddr )
         { ConnLessProtocol.CreateCLReqConnClientsListMes ( InetAddr ); }
 
-    void CreateCLReqServerListMes ( const CHostAddress& InetAddr )
-        { ConnLessProtocol.CreateCLReqServerListMes ( InetAddr ); }
+    void CreateCLReqServerListMes ( const CHostAddress& InetAddr,
+                                    const QString& ServerName )
+        { ConnLessProtocol.CreateCLReqServerListMes ( InetAddr, ServerName ); }
 
     int EstimatedOverallDelay ( const int iPingTimeMs );
 
@@ -276,10 +298,60 @@ public:
     CChannelCoreInfo ChannelInfo;
     QString          strClientName;
 
+    //sczr
+    // P2P functions
+    void P2pStateChanged( const bool enable );
+    bool GetWaitingForIp() { return waitingForIp; }
+    bool GetP2pEnabled() { return p2pEnabled; }
+    void SetP2pEnabled( const bool enabled )
+    {
+        p2pEnabled = enabled;
+        P2pStateChanged( p2pEnabled );
+    }
+
+    void SetP2pLoopEnabled ( const bool enabled )
+    {
+        p2pLoopEnabled = enabled;
+        qInfo() << qUtf8Printable( QString( "DEBUG p2pLoopEnabled set to: %1" )
+                .arg( enabled ) );
+    }
+
+    void SetRecorderState ( const bool enabled,
+                            const QString newRecordingDir )
+    {
+        bRecorderEnabled = enabled;
+        if ( enabled )
+        {
+            SetRecordingDir ( newRecordingDir );
+        }
+        else
+        {
+            bStopRecorder = true;
+        }
+    }
+
+    bool PutAudioData ( const CVector<uint8_t>& vecbyRecBuf,
+                        const int               iNumBytesRead,
+                        const CHostAddress&     HostAdr,
+                        int&                    iCurChanID );
+
 #ifdef LLCON_VST_PLUGIN
     // VST version must have direct access to sound object
     CSound* GetSound() { return &Sound; }
 #endif
+
+    // Jam recorder ------------------------------------------------------------
+    bool GetRecorderInitialised() { return JamController.GetRecorderInitialised(); }
+    QString GetRecorderErrMsg() { return JamController.GetRecorderErrMsg(); }
+    bool GetRecordingEnabled() { return JamController.GetRecordingEnabled(); }
+    void RequestNewRecording() { JamController.RequestNewRecording(); }
+
+    void SetEnableRecording ( bool bNewEnableRecording );
+
+    QString GetRecordingDir() { return JamController.GetRecordingDir(); }
+
+    void SetRecordingDir( QString newRecordingDir )
+        { JamController.SetRecordingDir ( newRecordingDir, iOPUSFrameSizeSamples, false ); }
 
 protected:
     // callback function must be static, otherwise it does not work
@@ -295,6 +367,7 @@ protected:
 
     // only one channel is needed for client application
     CChannel                Channel;
+    CChannel                p2pChannels[MAX_NUM_CHANNELS];
     CProtocol               ConnLessProtocol;
 
     // audio encoder/decoder
@@ -320,6 +393,31 @@ protected:
     bool                    bMuteOutStream;
     float                   fMuteOutStreamGain;
     CVector<unsigned char>  vecCeltData;
+
+    //p2p audio encoder/decoder
+    OpusCustomMode*            p2pOpus64Mode[MAX_NUM_CHANNELS];
+    OpusCustomEncoder*         p2pOpus64EncoderMono[MAX_NUM_CHANNELS];
+    OpusCustomDecoder*         p2pOpus64DecoderMono[MAX_NUM_CHANNELS];
+    OpusCustomEncoder*         p2pOpus64EncoderStereo[MAX_NUM_CHANNELS];
+    OpusCustomDecoder*         p2pOpus64DecoderStereo[MAX_NUM_CHANNELS];
+    OpusCustomMode*            p2pOpusMode[MAX_NUM_CHANNELS];
+    OpusCustomEncoder*         p2pOpusEncoderMono[MAX_NUM_CHANNELS];
+    OpusCustomDecoder*         p2pOpusDecoderMono[MAX_NUM_CHANNELS];
+    OpusCustomEncoder*         p2pOpusEncoderStereo[MAX_NUM_CHANNELS];
+    OpusCustomDecoder*         p2pOpusDecoderStereo[MAX_NUM_CHANNELS];
+
+    //p2p cvectors
+    CVector<int>               vecChanIDsCurConChan;
+    CVector<EAudComprType>     vecAudioComprType;
+    CVector<int>               vecNumAudioChannels;
+    CVector<int>               vecNumFrameSizeConvBlocks;
+    CVector<int>               vecUseDoubleSysFraSizeConvBuf;
+    CVector<CVector<uint8_t> > vecvecbyCodedData;
+    CConvBuf<int16_t>          DoubleFrameSizeConvBufIn[MAX_NUM_CHANNELS];
+    CVector<double>            p2pvecGains;
+    CVector<int16_t>           vecLoopAudio;
+
+    CVector<CVector<int16_t> > p2pvecvecsData;
 
     CHighPrioSocket         Socket;
     CSound                  Sound;
@@ -365,8 +463,44 @@ protected:
 
     CSignalHandler*         pSignalHandler;
 
+    //p2p
+    bool                    waitingForIp;
+    QString                 strServerIp;
+    QTimer                  TimerClientReReqServList;
+    QString                 strStartupAddress;
+    QString                 strCentralServerAddressClient;
+    bool                    p2pEnabled;
+    bool                    p2pLoopEnabled;
+    int                     iMaxNumChannels;
+    bool                    p2pClientIpsReceived;
+    quint32                 p2pClientIps[MAX_NUM_CHANNELS];
+    int                     p2pNumClientIps;
+
+    bool                    bLocalServer;
+    QTimer                  TimerPingP2pClients;
+    quint16                 iPort;
+
+    bool                    serverNameChanged;
+
+    //helper function for putaudiodata
+    int                     FindChannel ( const CHostAddress& CheckAddr );
+    int                     FindP2PChannel ( const CHostAddress& CheckAddr );
+    int                     GetFreeChan();
+
+    int CreateLevelForThisChan( const int              iChanID,
+                                const CVector<int16_t> vecvecsData,
+                                const int              numAudioChannels );
+    int CreateLevelForOwnChan( const CVector<int16_t> vecvecsData,
+                               const int        numAudioChannels );
+
+    // jam recorder
+    recorder::CJamController   JamController;
+    bool                       bRecorderEnabled;
+    bool                       bStopRecorder;
+
 protected slots:
     void OnHandledSignal ( int sigNum );
+    void OnAboutToQuit();
     void OnSendProtMessage ( CVector<uint8_t> vecMessage );
     void OnInvalidPacketReceived ( CHostAddress RecHostAddr );
 
@@ -395,6 +529,21 @@ protected slots:
     void OnControllerInFaderIsSolo ( int iChannelIdx, bool bIsSolo );
     void OnControllerInFaderIsMute ( int iChannelIdx, bool bIsMute );
     void OnClientIDReceived ( int iChanID );
+
+    void OnCLServerIpReceived ( CHostAddress,
+                                CVector<CServerInfo> vecServerInfo );
+
+    //sczr
+    void OnTimerClientReReqServList();
+    void OnConClientListMesReceived ( CVector<CChannelInfo> vecChanInfo );
+
+    //received own public ip & port
+    void OnCLPublicIpRec            ( CHostAddress          PInetAddr );
+
+public slots:
+    void OnNewP2pConnection ( int          iChID,
+                           CHostAddress );
+    void OnServerRegisteredSuccessfully( QString serverName );
 
 signals:
     void ConClientListMesReceived ( CVector<CChannelInfo> vecChanInfo );
@@ -432,4 +581,20 @@ signals:
     void ControllerInPanValue ( int iChannelIdx, int iValue );
     void ControllerInFaderIsSolo ( int iChannelIdx, bool bIsSolo );
     void ControllerInFaderIsMute ( int iChannelIdx, bool bIsMute );
+
+    void CentralServerAddressTypeChanged();
+    void ServerConnection( QString strReceivedServerIp, QString strReseivedServerName );
+
+    void P2PChStateChange(const int iChId, const bool bNewState );
+
+    void Stopped();
+
+    // recorder
+    void AudioFrame ( const int              iChID,
+                      const QString          stChName,
+                      const CHostAddress     RecHostAddr,
+                      const int              iNumAudChan,
+                      const CVector<int16_t> vecsData );
+
+    void SessionNameChanged ( const QString newServerName );
 };

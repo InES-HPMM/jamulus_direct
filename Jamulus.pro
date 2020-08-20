@@ -394,7 +394,9 @@ FORMS_GUI = src/clientdlgbase.ui \
     src/clientsettingsdlgbase.ui \
     src/chatdlgbase.ui \
     src/connectdlgbase.ui \
-    src/aboutdlgbase.ui
+    src/aboutdlgbase.ui \
+    src/startupdlgbase.ui \
+    src/sessionnamedlgbase.ui
 
 HEADERS += src/buffer.h \
     src/channel.h \
@@ -413,7 +415,8 @@ HEADERS += src/buffer.h \
     src/recorder/jamrecorder.h \
     src/recorder/creaperproject.h \
     src/recorder/cwavestream.h \
-    src/signalhandler.h
+    src/signalhandler.h \
+    src/startup.h
 
 HEADERS_GUI = src/audiomixerboard.h \
     src/chatdlg.h \
@@ -423,7 +426,9 @@ HEADERS_GUI = src/audiomixerboard.h \
     src/serverdlg.h \
     src/levelmeter.h \
     src/analyzerconsole.h \
-    src/multicolorled.h
+    src/multicolorled.h \
+    src/startupdlg.h \
+    src/sessionnamedlg.h
 
 HEADERS_OPUS = libs/opus/celt/arch.h \
     libs/opus/celt/bands.h \
@@ -522,7 +527,9 @@ SOURCES_GUI = src/audiomixerboard.cpp \
     src/serverdlg.cpp \
     src/multicolorled.cpp \
     src/levelmeter.cpp \
-    src/analyzerconsole.cpp
+    src/analyzerconsole.cpp \
+    src/startupdlg.cpp \
+    src/sessionnamedlg.cpp
 
 SOURCES_OPUS = libs/opus/celt/bands.c \
     libs/opus/celt/celt.c \

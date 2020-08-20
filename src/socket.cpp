@@ -4,26 +4,30 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  ZHAW - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 2 of the License, or (at your option) any later 
+ * Foundation; either version 2 of the License, or (at your option) any later
  * version.
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT 
+ * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more 
+ * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
  * details.
  *
  * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 
+ * this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  *
 \******************************************************************************/
 
 #include "socket.h"
 #include "server.h"
+#include "client.h"
 
 
 /* Implementation *************************************************************/
@@ -65,26 +69,11 @@ void CSocket::Init ( const quint16 iPortNumber )
         }
         else
         {
-            // If the port is not available, try "NUM_SOCKET_PORTS_TO_TRY" times
-            // with incremented port numbers. Randomize the start port, in case a
-            // faulty router gets stuck and confused by a particular port (like
-            // the starting port). Might work around frustrating "cannot connect"
-            // problems (#568)
-            const quint16 startingPortNumber = iPortNumber + rand() % NUM_SOCKET_PORTS_TO_TRY;
+            UdpSocketInAddr.sin_port = htons ( iPortNumber );
 
-            quint16 iClientPortIncrement = 0;
-            bSuccess                     = false; // initialization for while loop
-
-            while ( !bSuccess && ( iClientPortIncrement <= NUM_SOCKET_PORTS_TO_TRY ) )
-            {
-                UdpSocketInAddr.sin_port = htons ( startingPortNumber + iClientPortIncrement );
-
-                bSuccess = ( ::bind ( UdpSocket ,
-                                      (sockaddr*) &UdpSocketInAddr,
-                                      sizeof ( sockaddr_in ) ) == 0 );
-
-                iClientPortIncrement++;
-            }
+            bSuccess = ( ::bind ( UdpSocket ,
+                                (sockaddr*) &UdpSocketInAddr,
+                                sizeof ( sockaddr_in ) ) == 0 );
         }
     }
     else
@@ -124,6 +113,10 @@ void CSocket::Init ( const quint16 iPortNumber )
 
         QObject::connect ( this, static_cast<void (CSocket::*)()> ( &CSocket::NewConnection ),
             pChannel, &CChannel::OnNewConnection );
+
+        //p2p connect
+        QObject::connect ( this, static_cast<void (CSocket::*) ( int, CHostAddress )> ( &CSocket::NewP2pConnection ),
+            pClient, &CClient::OnNewP2pConnection );
     }
     else
     {
@@ -280,28 +273,40 @@ void CSocket::OnDataReceived()
         // this is most probably a regular audio packet
         if ( bIsClient )
         {
-            // client:
 
-            switch ( pChannel->PutAudioData ( vecbyRecBuf, iNumBytesRead, RecHostAddr ) )
+            if ( pChannel->GetAddress() == RecHostAddr )
             {
-            case PS_AUDIO_ERR:
-            case PS_GEN_ERROR:
-                bJitterBufferOK = false;
-                break;
+                // client channel:
+                switch ( pChannel->PutAudioData ( vecbyRecBuf, iNumBytesRead, RecHostAddr ) )
+                {
+                case PS_AUDIO_ERR:
+                case PS_GEN_ERROR:
+                    bJitterBufferOK = false;
+                    break;
 
-            case PS_NEW_CONNECTION:
-                // inform other objects that new connection was established
-                emit NewConnection();
-                break;
+                case PS_NEW_CONNECTION:
+                    // inform other objects that new connection was established
+                    emit NewConnection();
+                    break;
 
-            case PS_AUDIO_INVALID:
-                // inform about received invalid packet by fireing an event
-                emit InvalidPacketReceived ( RecHostAddr );
-                break;
+                case PS_AUDIO_INVALID:
+                    // inform about received invalid packet by fireing an event
+                    emit InvalidPacketReceived ( RecHostAddr );
+                    break;
 
-            default:
-                // do nothing
-                break;
+                default:
+                    // do nothing
+                    break;
+                }
+            }
+            else
+            {
+                // p2p channel:
+                int iCurChanID;
+                if( pClient->PutAudioData ( vecbyRecBuf, iNumBytesRead, RecHostAddr, iCurChanID ) )
+                {
+                    emit NewP2pConnection ( iCurChanID, RecHostAddr );
+                }
             }
         }
         else

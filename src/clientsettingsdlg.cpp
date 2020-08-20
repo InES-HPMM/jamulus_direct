@@ -4,6 +4,9 @@
  * Author(s):
  *  Volker Fischer
  *
+ * THIS FILE WAS MODIFIED by
+ *  ZHAW - Simone Schwizer
+ *
  ******************************************************************************
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -320,8 +323,8 @@ CClientSettingsDlg::CClientSettingsDlg ( CClient*         pNCliP,
     // Audio Channels combo box
     cbxAudioChannels->clear();
     cbxAudioChannels->addItem ( tr ( "Mono" ) );               // CC_MONO
-    cbxAudioChannels->addItem ( tr ( "Mono-in/Stereo-out" ) ); // CC_MONO_IN_STEREO_OUT
-    cbxAudioChannels->addItem ( tr ( "Stereo" ) );             // CC_STEREO
+    //cbxAudioChannels->addItem ( tr ( "Mono-in/Stereo-out" ) ); // CC_MONO_IN_STEREO_OUT
+    //cbxAudioChannels->addItem ( tr ( "Stereo" ) );             // CC_STEREO
     cbxAudioChannels->setCurrentIndex ( static_cast<int> ( pClient->GetAudioChannels() ) );
 
     // Audio Quality combo box

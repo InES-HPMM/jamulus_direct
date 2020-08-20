@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--- FILE MODIFIED by ZHAW Simone Schwizer -->
 <ui version="4.0">
  <class>CClientDlgBase</class>
  <widget class="QDialog" name="CClientDlgBase">
@@ -6,8 +7,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>425</width>
-    <height>490</height>
+    <width>671</width>
+    <height>653</height>
    </rect>
   </property>
   <property name="acceptDrops">
@@ -44,7 +45,7 @@
      <property name="minimumSize">
       <size>
        <width>0</width>
-       <height>0</height>
+       <height>550</height>
       </size>
      </property>
      <property name="frameShape">
@@ -529,14 +530,14 @@
             <item>
              <widget class="QRadioButton" name="rbtReverbSelL">
               <property name="text">
-               <string>Left</string>
+               <string>&amp;Left</string>
               </property>
              </widget>
             </item>
             <item>
              <widget class="QRadioButton" name="rbtReverbSelR">
               <property name="text">
-               <string>Right</string>
+               <string>Ri&amp;ght</string>
               </property>
              </widget>
             </item>
@@ -548,6 +549,20 @@
       </item>
       <item>
        <layout class="QVBoxLayout" name="verticalLayout">
+        <item>
+         <widget class="QCheckBox" name="chbP2p">
+          <property name="text">
+           <string>Enable Peer-to-Peer</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chbP2pLoop">
+          <property name="text">
+           <string>DEBUG: p2p loopback</string>
+          </property>
+         </widget>
+        </item>
         <item>
          <widget class="QLabel" name="lblGlobalInfoLabel">
           <property name="text">
@@ -601,11 +616,32 @@
          </widget>
         </item>
         <item>
-         <widget class="QLabel" name="lblUpdateCheck">
-          <property name="text">
-           <string>Update check</string>
-          </property>
-         </widget>
+         <layout class="QHBoxLayout" name="horizontalLayout_2">
+          <item>
+           <widget class="QCheckBox" name="chbEnableRecorder">
+            <property name="text">
+             <string>Record</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout">
+          <item>
+           <widget class="QLineEdit" name="edtCurrentSessionDir">
+            <property name="text">
+             <string>../Desktop/recordings</string>
+            </property>
+            <property name="readOnly">
+             <bool>false</bool>
+            </property>
+            <property name="placeholderText">
+             <string/>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </item>
        </layout>
       </item>
