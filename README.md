@@ -1,3 +1,9 @@
+# Jamulus UnMUTE
+Jamulus is an open-source software for online music sessions. Especially with the pandemic hiting the world, Jamulus is a great solution for bands and choirs to rehearse together from home over the internet. The website of Jamulus can be found at https://jamulus.io/.
+
+We are big fans of Jamulus and wanted to add peer-to-peer audio structure. Jamulus UnMUTE is the result of this effort.
+
+
 # Setup RaspberryPi and Jamulus
 ## Overview
 - [Write SD Card](#Write-SD-card)    
