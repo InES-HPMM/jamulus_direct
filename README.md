@@ -3,7 +3,7 @@ Jamulus is an open-source software for online music sessions. Especially with th
 
 We are big fans of Jamulus and wanted to add peer-to-peer audio structure. Jamulus UnMUTE is the result of this effort.
 
-# About UnMute
+## About UnMute
 UnMute is a modified version of Jamulus with a peer-to-peer audio function. The peer-to-peer structure can lower audio latencies between clients. UnMute is inteded for musical groups that want to rehearse together. The person who opens a session, shares the session name with its peers, so they can connect to the opened session. Opened sessions are not displayed in a list.
 
 UnMute is designed to be run on a Raspberry Pi. To test it out, you can either use our prepared image or install UnMute on a already running Raspberry Pi. Both options are explained in more details below.   
