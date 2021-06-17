@@ -6,9 +6,11 @@ We are big fans of Jamulus and wanted to add peer-to-peer audio structure. Jamul
 # About UnMute
 UnMute is a modified version of Jamulus with a peer-to-peer audio function. The peer-to-peer structure can lower audio latencies between clients. UnMute is inteded for musical groups that want to rehearse together. The person who opens a session, shares the session name with its peers, so they can connect to the opened session. Opened sessions are not displayed in a list.
 
-UnMute is designed to be run on a Raspberry Pi. To test it out, you can either use our prepared image or install UnMute on a already running Raspberry Pi. Both options are explained in more details below.
+UnMute is designed to be run on a Raspberry Pi. To test it out, you can either use our prepared image or install UnMute on a already running Raspberry Pi. Both options are explained in more details below.   
+- [Install UnMUTE on an already running RaspberryPi](#Install-UnMUTE-on-an-already-running-RaspberryPi)
+- [Setup UnMUTE Image on a RaspberryPi](#Setup-UnMUTE-Image-on-a-RaspberryPi)
 
-# Setup RaspberryPi and Jamulus
+# Setup UnMUTE Image on a RaspberryPi
 ## Overview
 - [Write SD Card](#Write-SD-card)    
 - [First Raspberry Pi Boot](#First-Raspberry-Pi-Boot)    
@@ -150,3 +152,6 @@ Now `aplay` will play the recordings on the USB interface. Replace both `2`s wit
 
 ### Enable SSH direclty on the SD before booting the Raspi
 The boot partition on a Pi should be accessible from any machine with an SD card reader, on Windows, Mac, or Linux. If you want to enable SSH, all you need to do is to put a file called `ssh` in the `/boot/` directory. The contents of the file don’t matter: it can contain any text you like, or even nothing at all. When the Pi boots, it looks for this file; if it finds it, it enables SSH and then deletes the file. SSH can still be turned on or off from the Raspberry Pi Configuration application or `raspi-config`.
+
+
+# Install UnMUTE on an already running RaspberryPi
