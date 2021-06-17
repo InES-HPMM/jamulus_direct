@@ -7,89 +7,44 @@ We are big fans of Jamulus and wanted to add peer-to-peer audio structure. Jamul
 UnMute is a modified version of Jamulus with a peer-to-peer audio function. The peer-to-peer structure can lower audio latencies between clients. UnMute is inteded for musical groups that want to rehearse together. The person who opens a session, shares the session name with its peers, so they can connect to the opened session. Opened sessions are not displayed in a list.
 
 UnMute is designed to be run on a Raspberry Pi. To test it out, you can either use our prepared image or install UnMute on a already running Raspberry Pi. Both options are explained in more details below.   
-- [Install UnMUTE on an already running RaspberryPi](#Install-UnMUTE-on-an-already-running-RaspberryPi)
+
 - [Setup UnMUTE Image on a RaspberryPi](#Setup-UnMUTE-Image-on-a-RaspberryPi)
+- [Install UnMUTE on an already running RaspberryPi](#Install-UnMUTE-on-an-already-running-RaspberryPi)
 
 # Setup UnMUTE Image on a RaspberryPi
-## Overview
-- [Write SD Card](#Write-SD-card)    
-- [First Raspberry Pi Boot](#First-Raspberry-Pi-Boot)    
-- [Option A Teamviewer](#Option-A-Teamviewer)    
-- [Option B SSH](#Option-B-SSH)    
-- [Install and Run Jamulus](#Install-and-Run-Jamulus)    
-- [Additions](#Additions)     
-  - [Set static IP](#Set-static-IP)    
-  - [Enable SSH direclty on the SD before booting the Raspi](#Enable-SSH-direclty-on-the-SD-before-booting-the-Raspi)    
+- [1 Write SD Card](#Write-SD-card)    
+- [2 Connect to RaspberryPi with VNC Viewer](#Connect-to-RaspberryPi-with-VNC-Viewer)    
 
 ------------------------------------------------
 
 ## Write SD card
-Install RaspberryPi Imager: https://www.raspberrypi.org/downloads/
+Download the UnMUTE Image:
 
-Write SD card with Imager. As OS choose recommended Raspberry Pi OS (32-bit).
+Write the image on an SD Card. For this you can use the RaspberryPi Imager: https://www.raspberrypi.org/downloads/
 
-## First Raspberry Pi Boot
-- Connect micro HDMI, mouse and keyboard to the raspi. Then boot it by connecting it to power.
-- Usually the raspberry will login automatically. Else the default login is:
-```
-User: pi     
-Password: raspberry
-```
-Run the following line to update the packages:
-```
-sudo apt update
-```
+After installing the RaspberryPi Imager, start the application. In "CHOOSE OS" select "Use custom" and then find the downloaded image.
 
-For the future we want to be able to use the RaspberryPi from remote. You can either choose option A: Teamviewer or option B: ssh.
+When the imager is done, remove the SD card from the computer and put it into the RaspberryPi.
 
-## Option A Teamviewer
-Download, install and setup Teamviewer.
-```
-wget https://download.teamviewer.com/download/linux/teamviewer-host_armhf.deb
-sudo apt install ./teamviewer*.deb
-teamviewer setup
-```
-Write down the TeamviewerID and set a password. Or add the device to your teamviewer account.   
-Usually the raspberry does not boot into the GUI if no display is connected. But Teamviewer needs the GUI to be startet:
-```
-sudo nano /boot/config.txt
-```
-Add the lines:
-```
-hdmi_force_hotplug=1
-hdmi_group=2
-hdmi_mode=82
-hdmi_drive=2
-```
-With this changes, the raspi boots its display even though nothing is connected to the HDMI port.   
-Reboot the raspi and connect over teamviewer.    
-If you would like to change the resolution you can execute the following line at run time:
-```
-xrandr --size 1920x1080
-```
+Boot the RaspberryPi.
 
-## Option B SSH
-Enable SSH in the raspi-config:
-```
-sudo raspi-config 
--> interfacing options 
--> SSH 
--> enable
-```
-Write down the IP address of the Raspberry Pi (`ifconfig` shows ip information) and reboot.
-Now you can connect to the raspberry:
+## Connect to RaspberryPi with VNC Viewer
+To use the RaspberryPi, one can simply connect a display, keyboard and mouse to the Pi. But since this setup is not very handy, we suggest connecting to the RaspberryPi with VNC Viewer. VNC Viewer can be installed on a Laptop/Computer with Windows, MacOS and Linux (https://www.realvnc.com/de/connect/download/viewer/). Or install it on your phone over the App Store on Android or iOS.
 
-```
-ssh -X pi@<ip-address>
-```
-The `-X` option makes it possible to run applications with GUI's. This is necessary to run Jamulus.    
-Jamulus is run with sudo because it needs root permissions. But the x11 needs to be enabled for sudo user:
-```
-xauth list | grep unix`echo $DISPLAY | cut -c10-12` > /tmp/xauth
-sudo su
-xauth add `cat /tmp/xauth`
-exit
-```
+VNC Viewer needs the IP address of the RaspberryPi to connect. If you don't know the IP of the RaspberryPi you can find it out with:
+- On Windows: Install and run Bonjour Print Services https://support.apple.com/kb/DL999?locale=en_US
+- Android Phone: Install and run BonjourBrowser Application from the Play Store
+- Apple: TODO
+- Linux: In a terminal run: `ping raspberrypi.local`
+
+
+### Enable SSH direclty on the SD before booting the Raspi
+The boot partition on a Pi should be accessible from any machine with an SD card reader, on Windows, Mac, or Linux. If you want to enable SSH, all you need to do is to put a file called `ssh` in the `/boot/` directory. The contents of the file don’t matter: it can contain any text you like, or even nothing at all. When the Pi boots, it looks for this file; if it finds it, it enables SSH and then deletes the file. SSH can still be turned on or off from the Raspberry Pi Configuration application or `raspi-config`.
+
+
+# Install UnMUTE on an already running RaspberryPi
+
+
 
 
 ## Install and Run Jamulus
@@ -119,39 +74,3 @@ Ctrl+X
 sudo chmod 777 ~/Desktop/startjamulus.sh
 ```
 Double click the script on the desktop and choose "Execute in Terminal".
-
-## Additions
-### Set static IP
-If the raspi needs a static IP, follow the instructions on: [Set-StaticIP-RaspberryPi](https://thepihut.com/blogs/raspberry-pi-tutorials/how-to-give-your-raspberry-pi-a-static-ip-address-update)
-
-
-### Listen to recordings over the USB Interface
-Jamulus lets you record your music session. To listen to this recordings you can use `aplay`. But the audio will be played on the default sound card which is usually the HDMI sound output. You can check all available sound cards with:
-```
-cat /proc/asound/cards
-```
-The output will look something like this:
-```
- 0 [b1             ]: bcm2835_hdmi - bcm2835 HDMI 1
-                      bcm2835 HDMI 1
- 1 [Headphones     ]: bcm2835_headphonbcm2835 Headphones - bcm2835 Headphones
-                      bcm2835 Headphones
- 2 [CODEC          ]: USB-Audio - USB Audio CODEC
-                      Burr-Brown from TI USB Audio CODEC at usb-0000:01:00.0-1.2, full speed
-```
-To change the default soundcard to the headphone jack (1) or to the USB interface (2) you need to create the file `/etc/asound.conf`:
-```
-sudo nano /etc/asound.conf
-```
-And add the following lines:  
-```
-defaults.pcm.card 2
-defaults.ctl.card 2
-```
-Now `aplay` will play the recordings on the USB interface. Replace both `2`s with `1`s to change it to the headphone jack.
-
-### Enable SSH direclty on the SD before booting the Raspi
-The boot partition on a Pi should be accessible from any machine with an SD card reader, on Windows, Mac, or Linux. If you want to enable SSH, all you need to do is to put a file called `ssh` in the `/boot/` directory. The contents of the file don’t matter: it can contain any text you like, or even nothing at all. When the Pi boots, it looks for this file; if it finds it, it enables SSH and then deletes the file. SSH can still be turned on or off from the Raspberry Pi Configuration application or `raspi-config`.
-
-
-# Install UnMUTE on an already running RaspberryPi
