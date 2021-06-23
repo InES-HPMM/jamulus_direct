@@ -6,7 +6,9 @@ We are big fans of Jamulus and wanted to add peer-to-peer audio structure. UnMUT
 ## About UnMute
 UnMute is a modified version of Jamulus with a peer-to-peer audio function. The peer-to-peer structure can lower audio latencies between clients. UnMute is inteded for musical groups that want to rehearse together. The person who opens a session, shares the session name with his/her peers, so they can connect to the opened session. Opened sessions are not displayed in a public list.
 
-UnMute is designed to be run on a Raspberry Pi. To test it out, you can either use our prepared image or install UnMute on a already running Raspberry Pi. Both options are explained in more details below.   
+UnMute is designed to be run on a Raspberry Pi with a USB audio interface that is compatible with Linux.    
+Our setup is a RaspberryPi 4 with a U-Phoria UM2 Behringer USB Interface.    
+To test it out, you can either use our prepared image or install UnMute on a already running Raspberry Pi. Both options are explained in more details below.   
 
 - [Setup UnMUTE Image on a RaspberryPi](#Setup-UnMUTE-Image-on-a-RaspberryPi)
 - [Install UnMUTE on an already running RaspberryPi](#Install-UnMUTE-on-an-already-running-RaspberryPi)
@@ -37,10 +39,17 @@ VNC Viewer needs the IP address of the RaspberryPi to connect. If you don't know
 - Apple: TODO
 - Linux: In a terminal run: `ping raspberrypi.local`
 
+Once you have found out the IP of the Raspberrypi. Enter the IP in the VNC Viewer application. To login use:
+- User: pi
+- Password: unmute2021
 
-### Enable SSH direclty on the SD before booting the Raspi
-The boot partition on a Pi should be accessible from any machine with an SD card reader, on Windows, Mac, or Linux. If you want to enable SSH, all you need to do is to put a file called `ssh` in the `/boot/` directory. The contents of the file don’t matter: it can contain any text you like, or even nothing at all. When the Pi boots, it looks for this file; if it finds it, it enables SSH and then deletes the file. SSH can still be turned on or off from the Raspberry Pi Configuration application or `raspi-config`.
+When you are logged in, you can change the password of the RaspberryPi     
+(Click Raspberry Symbol on top left -> Preferences -> Raspberry Pi Configuration -> Change Password)
 
+## Run UnMUTE
+Tor run UnMUTE, double-click the file called UNMUTE on the desktop. Then you can choose either "Execute" or "Execute in Terminal". Running it in terminal can be useful to get the application debug output, if something is not working.
+
+The first window that opens up lets you choose your name and the name of the session. If you are opening the session, press "Open". If your peer has already opened a session, than enter his/her session name and press "Connect to Session". 
 
 # Install UnMUTE on an already running RaspberryPi
 
