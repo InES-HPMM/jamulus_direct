@@ -19,6 +19,8 @@ To test it out, you can either use our prepared image or install **Jamulus Direc
 - [Setup Jamulus Direct Image on a RaspberryPi](#Setup-Jamulus-Direct-Image-on-a-RaspberryPi)
 - [Install Jamulus Direct on an already running RaspberryPi](#Install-Jamulus-Direct-on-an-already-running-RaspberryPi)
 
+![Pi-and-Interface](images/pi_audio_interface.jpg)
+
 # Setup Jamulus Direct Image on a RaspberryPi
 - [1 Write SD Card](#Write-SD-card)    
 - [2 Connect to RaspberryPi with VNC Viewer](#Connect-to-RaspberryPi-with-VNC-Viewer)    
