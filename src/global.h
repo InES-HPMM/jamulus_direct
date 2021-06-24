@@ -97,18 +97,18 @@ LED bar:      lbr
 #define DOUBLE_SYSTEM_FRAME_SIZE_SAMPLES ( 2 * SYSTEM_FRAME_SIZE_SAMPLES )
 
 // default server address and port numbers
-#define DEFAULT_SERVER_ADDRESS           "160.85.67.92:22124"
+#define DEFAULT_SERVER_ADDRESS           "signal.unmute.ch:22124"
 #define DEFAULT_PORT_NUMBER              22124
-#define CENTSERV_ANY_GENRE2              "160.85.67.92:22124"
-#define CENTSERV_ANY_GENRE3              "160.85.67.92:22124"
-#define CENTSERV_GENRE_ROCK              "160.85.67.92:22124"
-#define CENTSERV_GENRE_JAZZ              "160.85.67.92:22124"
-#define CENTSERV_GENRE_CLASSICAL_FOLK    "160.85.67.92:22124"
-#define CENTSERV_GENRE_CHORAL            "160.85.67.92:22124"
+#define CENTSERV_ANY_GENRE2              "signal.unmute.ch:22124"
+#define CENTSERV_ANY_GENRE3              "signal.unmute.ch:22124"
+#define CENTSERV_GENRE_ROCK              "signal.unmute.ch:22124"
+#define CENTSERV_GENRE_JAZZ              "signal.unmute.ch:22124"
+#define CENTSERV_GENRE_CLASSICAL_FOLK    "signal.unmute.ch:22124"
+#define CENTSERV_GENRE_CHORAL            "signal.unmute.ch:22124"
 
 // servers to check for new versions
-#define UPDATECHECK1_ADDRESS             "160.85.67.92:22124"
-#define UPDATECHECK2_ADDRESS             "160.85.67.92:22124"
+#define UPDATECHECK1_ADDRESS             "signal.unmute.ch:22124"
+#define UPDATECHECK2_ADDRESS             "signal.unmute.ch:22124"
 
 // getting started and software manual URL
 #define CLIENT_GETTING_STARTED_URL       "https://jamulus.io/wiki/Getting-Started"
