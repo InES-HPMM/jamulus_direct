@@ -42,13 +42,14 @@ Boot the RaspberryPi.
 To use the RaspberryPi, one can simply connect a display, keyboard and mouse to the Pi. But since this setup is not very handy, we suggest connecting to the RaspberryPi with VNC Viewer. VNC Viewer can be installed on a Laptop/Computer with Windows, MacOS and Linux (https://www.realvnc.com/de/connect/download/viewer/). Or install it on your phone over the App Store on Android or iOS. The device you choose to connect with, needs to be in the same network as the RaspberryPi.
 
 To connect to the RaspberryPi with VNC viewer, enter `jamulusdirect.local`. The VNC viewer should find the RaspberryPi by this hostname.
-![Pi-and-Interface](images/vnc_viewer_connect1.png)
+
+![](images/vnc_viewer_connect1.png)
 
 To login use:
 - User: pi
 - Password: jamulusdirect4music
 
-![Pi-and-Interface](images/vnc_viewer_connect2.png)
+![](images/vnc_viewer_connect2.png)
 
 If the VNC Viewer cannot find the hostname `jamulusdirect.local`then do the following:
 - On Windows: Install and run Bonjour Print Services https://support.apple.com/kb/DL999?locale=en_US
@@ -58,8 +59,10 @@ If the VNC Viewer cannot find the hostname `jamulusdirect.local`then do the foll
 When you are logged in, for security, change the password of the RaspberryPi.   
 Click Raspberry Symbol on top left -> Preferences -> Raspberry Pi Configuration -> Change Password
 
-![Pi-and-Interface](images/raspi_config_menu_edited.png)
-![Pi-and-Interface](images/raspi_config_cange_pwd_edited.png)
+<img src="/images/raspi_config_menu_edited.png" width="830" />
+
+
+<img src="/images/raspi_config_cange_pwd_edited.png" width="830" />
 
 
 ## Run Jamulus Direct
