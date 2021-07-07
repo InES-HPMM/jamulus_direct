@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # THIS FILE WAS MODIFIED by
-#  ZHAW - Simone Schwizer
+#  Institut of Embedded Systems ZHAW (www.zhaw.ch/ines) - Simone Schwizer
 
 # This script is intended to setup a clean Raspberry Pi system for running Jamulus
 OPUS="opus-1.3.1"

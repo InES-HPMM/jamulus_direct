@@ -5,7 +5,7 @@
  *  Volker Fischer
  *
  * THIS FILE WAS MODIFIED by
- *  ZHAW - Simone Schwizer
+ *  Institut of Embedded Systems ZHAW (www.zhaw.ch/ines) - Simone Schwizer
  *
 
 Currently, if you want to run a private server, you have to open the firewall of

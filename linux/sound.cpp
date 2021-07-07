@@ -5,7 +5,7 @@
  *  Volker Fischer
  *
  * THIS FILE WAS MODIFIED by
- *  ZHAW - Simone Schwizer
+ *  Institut of Embedded Systems ZHAW (www.zhaw.ch/ines) - Simone Schwizer
  *
  * This code is based on the simple_client example of the Jack audio interface.
  *
