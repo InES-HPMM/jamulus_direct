@@ -59,7 +59,7 @@ CStartupDlg::CStartupDlg(CStartup& CStartup, QWidget* parent, Qt::WindowFlags f)
 
     edtName->setText(Startup.strUserName);
     edtSessionName->setText(Startup.strSessionName);
-    setWindowTitle ( "Jamulus UnMute" );
+    setWindowTitle ( "Jamulus Direct" );
 
 }
 
