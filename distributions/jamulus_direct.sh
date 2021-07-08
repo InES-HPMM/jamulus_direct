@@ -7,7 +7,7 @@ export LD_LIBRARY_PATH="distributions/${OPUS}/.libs:distributions/jack2/build:di
 
 cd ..
 distributions/jack2/build/jackd -R -T --silent -P70 -p16 -t2000 -d alsa -dhw:${ADEVICE} -p 128 -n 3 -r 48000 -s &
-./Jamulus --username DefaultUsername
+./Jamulus # --username DefaultUsername
 
 killall Jamulus
 killall jackd

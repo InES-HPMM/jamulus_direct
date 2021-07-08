@@ -637,8 +637,8 @@ void CClientSettings::WriteSettingsToXML ( QDomDocument& IniXMLDocument )
         iNumMixerPanelRows );
 
     // name
-    //PutIniSetting ( IniXMLDocument, "client", "name_base64",
-    //    ToBase64 ( pClient->ChannelInfo.strName ) );
+    PutIniSetting ( IniXMLDocument, "client", "name_base64",
+        ToBase64 ( pClient->ChannelInfo.strName ) );
 
     // instrument
     SetNumericIniSet ( IniXMLDocument, "client", "instrument",

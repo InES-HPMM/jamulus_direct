@@ -48,6 +48,7 @@
 
 
 // Implementation **************************************************************
+QString GetClientName(const QString& sNFiName);
 
 int main ( int argc, char** argv )
 {
@@ -602,6 +603,10 @@ int main ( int argc, char** argv )
     try {
         if(!Startup.bNCentServPingServerInList)
         {
+            if (Startup.strUserName.isEmpty()) {
+                Startup.strUserName = GetClientName(Startup.strIniFileName);
+            }
+
 #ifndef HEADLESS
             if (bUseGUI) {
 
@@ -752,8 +757,61 @@ int main ( int argc, char** argv )
     return 0;
 }
 
+QByteArray FromBase64ToByteArray ( const QString strIn )
+        { return QByteArray::fromBase64 ( strIn.toLatin1() ); }
 
+QString FromBase64ToString ( const QString strIn )
+        { return QString::fromUtf8 ( FromBase64ToByteArray ( strIn ) ); }
 
+QString GetClientName(const QString& sNFiName)
+{
+    /* Get file path */
+    QString strFileName = sNFiName;
+
+    if ( strFileName.isEmpty() )
+    {
+        // we use the Qt default setting file paths for the different OSs by
+        // utilizing the QSettings class
+        const QString sConfigDir = QFileInfo ( QSettings ( QSettings::IniFormat,
+                                                           QSettings::UserScope,
+                                                           APP_NAME,
+                                                           APP_NAME ).fileName() ).absolutePath();
+
+        // make sure the directory exists
+        if ( !QFile::exists ( sConfigDir ) )
+        {
+            QDir().mkpath ( sConfigDir );
+        }
+
+        // append the actual file name
+        strFileName = sConfigDir + "/" + DEFAULT_INI_FILE_NAME;
+    }
+
+    /* Read file */
+    QFile file ( strFileName );
+    QDomDocument XMLDocument;
+
+    if ( file.open ( QIODevice::ReadOnly ) )
+    {
+        XMLDocument.setContent ( QTextStream ( &file ).readAll(), false );
+        file.close();
+    }
+
+    /*Get client name*/
+    QString sResult("DefaultName");
+    QDomElement xmlSection = XMLDocument.firstChildElement ( "client" );
+    if ( !xmlSection.isNull() )
+    {
+        // get key
+        QDomElement xmlKey = xmlSection.firstChildElement ( "name_base64" );
+        if ( !xmlKey.isNull() )
+        {
+            // get value
+            sResult = FromBase64ToString (xmlKey.text());
+        }
+    }
+    return sResult;
+}
 
 
 /******************************************************************************\
