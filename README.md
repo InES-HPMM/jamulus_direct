@@ -68,6 +68,8 @@ Click Raspberry Symbol on top left -> Preferences -> Raspberry Pi Configuration 
 ## Run Jamulus Direct
 Tor run **Jamulus Direct**, double-click the file called **Jamulus Direct** on the desktop. Then you can choose either "Execute" or "Execute in Terminal". Running it in terminal can be useful to get the application debug output, if something is not working.
 
+![](images/start_jamulus_direct.png)
+
 The first window that opens up lets you choose your name and the name of the session. If you are opening the session, press "Open". If your peer has already opened a session, than enter his/her session name and press "Connect to Session". 
 
 # Install Jamulus Direct on an already running RaspberryPi
