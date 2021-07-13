@@ -14,7 +14,7 @@ We are big fans of Jamulus and wanted to add peer-to-peer audio communication. J
 **Jamulus-Direct** is a modified version of Jamulus with a peer-to-peer audio functionality. The peer-to-peer structure can lower audio latencies between clients. The software is inteded for musical groups that want to rehearse together. The person who opens a session, shares the session name with his/her peers, so they can connect to the opened session. Opened sessions are not displayed in a public list.
 
 **Jamulus-Direct** is designed to be run on a Raspberry Pi 4 with a U-Phoria UM2 Behringer USB audio Interface.    
-To test it out, you can either use our prepared image or install **Jamulus-Direct** on a already running Raspberry Pi. Both options are explained in more details below.   
+To test it out, you can either use our prepared [image](https://download.unmute.ch/jamulus_direct_v1_beta.img.gz ) or install **Jamulus-Direct** on a already running Raspberry Pi. Both options are explained in more details below.   
 
 - [Setup Jamulus-Direct Image on a RaspberryPi](#Setup-Jamulus-Direct-Image-on-a-RaspberryPi)
 - [Install Jamulus-Direct on an already running RaspberryPi](#Install-Jamulus-Direct-on-an-already-running-RaspberryPi)
@@ -28,7 +28,7 @@ To test it out, you can either use our prepared image or install **Jamulus-Direc
 ------------------------------------------------
 
 ## Write SD card
-Download the **Jamulus-Direct** Image:
+Download the **Jamulus-Direct** Image from our server: https://download.unmute.ch/jamulus_direct_v1_beta.img.gz 
 
 Write the image on an SD Card. For this you can use the RaspberryPi Imager: https://www.raspberrypi.org/downloads/
 
